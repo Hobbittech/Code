@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Felipe X Ultra | Tech • Racing • AI • Gaming</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+
+/* =========================================================
+   ROOT
+========================================================= */
+
+:root{
+
+--bg:#020617;
+--bg2:#07101f;
+--card:#111827;
+--card2:#1e293b;
+
+--red:#ff3131;
+--blue:#00c2ff;
+--green:#22c55e;
+--purple:#8b5cf6;
+--yellow:#facc15;
+--white:#ffffff;
+--gray:#cbd5e1;
+
+}
+
+/* =========================================================
+   RESET
+========================================================= */
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+html{
+scroll-behavior:smooth;
+}
+
+body{
+font-family:'Poppins',sans-serif;
+background:linear-gradient(to bottom,#020617,#07101f);
+color:white;
+overflow-x:hidden;
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar{
+width:10px;
+}
+
+::-webkit-scrollbar-track{
+background:#020617;
+}
+
+::-webkit-scrollbar-thumb{
+background:var(--red);
+border-radius:20px;
+}
+
+/* =========================================================
+   GLOBAL
+========================================================= */
+
+.container{
+width:92%;
+max-width:1600px;
+margin:auto;
+}
+
+section{
+padding:120px 0;
+}
+
+.section-title{
+text-align:center;
+margin-bottom:70px;
+}
+
+.section-title h2{
+font-size:4rem;
+font-family:'Orbitron',sans-serif;
+color:var(--red);
+margin-bottom:20px;
+}
+
+.section-title p{
+color:var(--gray);
+font-size:1.1rem;
+}
+
+/* =========================================================
+   NAVBAR
+========================================================= */
+
+header{
+
+position:fixed;
+width:100%;
+top:0;
+z-index:999;
+
+background:rgba(0,0,0,0.55);
+backdrop-filter:blur(12px);
+
+border-bottom:1px solid rgba(255,255,255,0.08);
+
+}
+
+.navbar{
+
+display:flex;
+justify-content:space-between;
+align-items:center;
+
+padding:20px 6%;
+
+}
+
+.logo{
+
+font-family:'Orbitron',sans-serif;
+font-size:2.2rem;
+font-weight:900;
+color:var(--red);
+
+}
+
+.logo span{
+color:var(--blue);
+}
+
+nav{
+
+display:flex;
+gap:30px;
+
+}
+
+nav a{
+
+text-decoration:none;
+color:white;
+font-weight:500;
+transition:0.3s;
+
+}
+
+nav a:hover{
+color:var(--red);
+}
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.hero{
+
+height:100vh;
+
+background:
+linear-gradient(rgba(0,0,0,0.75),rgba(0,0,0,0.9)),
+url("https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=2200&auto=format&fit=crop");
+
+background-size:cover;
+background-position:center;
+
+display:flex;
+justify-content:center;
+align-items:center;
+
+text-align:center;
+
+position:relative;
+
+overflow:hidden;
+
+}
+
+.hero::before{
+
+content:'';
+
+position:absolute;
+width:800px;
+height:800px;
+
+background:radial-gradient(circle,var(--red),transparent 70%);
+
+opacity:0.15;
+
+top:-300px;
+right:-250px;
+
+animation:pulse 6s infinite;
+
+}
+
+@keyframes pulse{
+
+0%{
+transform:scale(1);
+}
+
+50%{
+transform:scale(1.2);
+}
+
+100%{
+transform:scale(1);
+}
+
+}
+
+.hero-content{
+
+max-width:1100px;
+position:relative;
+z-index:2;
+
+padding:20px;
+
+}
+
+.hero h1{
+
+font-size:6rem;
+font-family:'Orbitron',sans-serif;
+line-height:1.1;
+
+margin-bottom:25px;
+
+animation:glow 2s infinite alternate;
+
+}
+
+.hero h1 span{
+color:var(--red);
+}
+
+@keyframes glow{
+
+from{
+text-shadow:0 0 10px var(--red);
+}
+
+to{
+text-shadow:0 0 35px var(--red),0 0 55px var(--red);
+}
+
+}
+
+.hero p{
+
+font-size:1.4rem;
+line-height:1.9;
+color:var(--gray);
+
+margin-bottom:40px;
+
+}
+
+.hero-buttons{
+
+display:flex;
+justify-content:center;
+gap:20px;
+flex-wrap:wrap;
+
+}
+
+.btn{
+
+padding:17px 35px;
+border:none;
+border-radius:50px;
+cursor:pointer;
+
+font-weight:bold;
+font-size:1rem;
+
+transition:0.4s;
+
+}
+
+.btn-red{
+
+background:var(--red);
+color:white;
+
+}
+
+.btn-red:hover{
+
+transform:translateY(-5px);
+box-shadow:0 0 30px var(--red);
+
+}
+
+.btn-blue{
+
+background:transparent;
+border:2px solid var(--blue);
+color:var(--blue);
+
+}
+
+.btn-blue:hover{
+
+background:var(--blue);
+color:black;
+
+}
+
+/* =========================================================
+   LIVE TICKER
+========================================================= */
+
+.ticker{
+
+background:black;
+padding:15px;
+overflow:hidden;
+white-space:nowrap;
+border-top:1px solid rgba(255,255,255,0.08);
+border-bottom:1px solid rgba(255,255,255,0.08);
+
+}
+
+.ticker-content{
+
+display:inline-block;
+animation:tickerMove 25s linear infinite;
+
+font-weight:600;
+color:var(--yellow);
+
+}
+
+@keyframes tickerMove{
+
+0%{
+transform:translateX(100%);
+}
+
+100%{
+transform:translateX(-100%);
+}
+
+}
+
+/* =========================================================
+   NEWS
+========================================================= */
+
+.news-grid{
+
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(340px,1fr));
+gap:30px;
+
+}
+
+.news-card{
+
+background:linear-gradient(145deg,#111827,#1e293b);
+
+border-radius:25px;
+
+overflow:hidden;
+
+transition:0.4s;
+
+border:1px solid rgba(255,255,255,0.06);
+
+}
+
+.news-card:hover{
+
+transform:translateY(-12px);
+
+box-shadow:0 20px 50px rgba(255,49,49,0.25);
+
+}
+
+.news-card img{
+
+width:100%;
+height:230px;
+object-fit:cover;
+
+}
+
+.news-content{
+padding:28px;
+}
+
+.news-content h3{
+
+margin-bottom:15px;
+font-size:1.5rem;
+
+}
+
+.news-content p{
+
+line-height:1.8;
+color:var(--gray);
+
+}
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+.dashboard-grid{
+
+display:grid;
+grid-template-columns:2fr 1fr;
+gap:35px;
+
+}
+
+.panel{
+
+background:linear-gradient(145deg,#111827,#1f2937);
+
+padding:35px;
+
+border-radius:25px;
+
+border:1px solid rgba(255,255,255,0.07);
+
+}
+
+.panel h3{
+
+font-size:2rem;
+margin-bottom:25px;
+color:var(--blue);
+
+}
+
+/* =========================================================
+   FORM
+========================================================= */
+
+.form-group{
+margin-bottom:20px;
+}
+
+input,
+textarea{
+
+width:100%;
+padding:16px;
+
+border:none;
+border-radius:12px;
+
+background:#0f172a;
+
+color:white;
+font-size:1rem;
+
+}
+
+textarea{
+
+resize:none;
+min-height:120px;
+
+}
+
+.add-btn{
+
+width:100%;
+padding:16px;
+
+background:var(--red);
+border:none;
+
+border-radius:12px;
+
+font-size:1rem;
+font-weight:bold;
+
+color:white;
+
+cursor:pointer;
+
+transition:0.3s;
+
+}
+
+.add-btn:hover{
+
+background:#ff0000;
+
+transform:translateY(-3px);
+
+}
+
+/* =========================================================
+   ASSIGNMENTS
+========================================================= */
+
+.assignment-list{
+margin-top:30px;
+}
+
+.assignment{
+
+background:#0f172a;
+
+padding:25px;
+
+border-radius:18px;
+
+margin-bottom:20px;
+
+border-left:5px solid var(--red);
+
+animation:fadeIn 0.5s ease;
+
+}
+
+@keyframes fadeIn{
+
+from{
+opacity:0;
+transform:translateY(20px);
+}
+
+to{
+opacity:1;
+transform:translateY(0);
+}
+
+}
+
+.assignment h4{
+margin-bottom:10px;
+}
+
+.assignment p{
+
+line-height:1.7;
+color:var(--gray);
+
+}
+
+.delete-btn{
+
+margin-top:15px;
+
+padding:10px 18px;
+
+background:var(--red);
+
+border:none;
+
+border-radius:10px;
+
+color:white;
+
+cursor:pointer;
+
+}
+
+/* =========================================================
+   LIVE STATS
+========================================================= */
+
+.stats{
+
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:20px;
+
+}
+
+.stat-box{
+
+background:#0f172a;
+
+padding:30px;
+
+border-radius:20px;
+
+text-align:center;
+
+transition:0.3s;
+
+}
+
+.stat-box:hover{
+
+transform:scale(1.05);
+
+}
+
+.stat-box h4{
+
+font-size:2.2rem;
+
+margin-bottom:10px;
+
+color:var(--green);
+
+}
+
+/* =========================================================
+   GARAGE
+========================================================= */
+
+.car-grid{
+
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+
+gap:30px;
+
+}
+
+.car-card{
+
+background:linear-gradient(145deg,#111827,#1f2937);
+
+border-radius:22px;
+
+overflow:hidden;
+
+transition:0.4s;
+
+}
+
+.car-card:hover{
+
+transform:scale(1.03);
+
+}
+
+.car-card img{
+
+width:100%;
+height:230px;
+object-fit:cover;
+
+}
+
+.car-content{
+padding:25px;
+}
+
+.car-content h3{
+
+color:var(--red);
+
+margin-bottom:12px;
+
+}
+
+.car-content p{
+
+line-height:1.8;
+color:var(--gray);
+
+}
+
+/* =========================================================
+   TECH GRID
+========================================================= */
+
+.tech-grid{
+
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+
+gap:30px;
+
+}
+
+.tech-card{
+
+background:#111827;
+
+padding:35px;
+
+border-radius:20px;
+
+text-align:center;
+
+transition:0.4s;
+
+}
+
+.tech-card:hover{
+
+transform:translateY(-10px);
+
+background:#1e293b;
+
+}
+
+.tech-icon{
+
+font-size:4rem;
+
+margin-bottom:20px;
+
+}
+
+/* =========================================================
+   TERMINAL
+========================================================= */
+
+.terminal{
+
+background:black;
+
+border-radius:25px;
+
+padding:35px;
+
+font-family:monospace;
+
+line-height:2;
+
+border:1px solid rgba(0,255,0,0.2);
+
+box-shadow:0 0 30px rgba(0,255,0,0.08);
+
+}
+
+.terminal-line{
+color:#00ff88;
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+footer{
+
+background:black;
+
+padding:80px 20px;
+
+text-align:center;
+
+}
+
+footer h2{
+
+font-family:'Orbitron',sans-serif;
+
+font-size:2.5rem;
+
+margin-bottom:20px;
+
+color:var(--red);
+
+}
+
+footer p{
+
+color:#9ca3af;
+line-height:1.9;
+
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media(max-width:1000px){
+
+.dashboard-grid{
+grid-template-columns:1fr;
+}
+
+.hero h1{
+font-size:4rem;
+}
+
+}
+
+@media(max-width:700px){
+
+nav{
+display:none;
+}
+
+.hero h1{
+font-size:2.8rem;
+}
+
+.section-title h2{
+font-size:2.5rem;
+}
+
+.hero p{
+font-size:1rem;
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<!-- =========================================================
+     NAVBAR
+========================================================= -->
+
+<header>
+
+<div class="navbar">
+
+<div class="logo">
+Felipe<span>X</span>
+</div>
+
+<nav>
+
+<a href="#news">News</a>
+<a href="#dashboard">Dashboard</a>
+<a href="#garage">Garage</a>
+<a href="#tech">Tech</a>
+
+</nav>
+
+</div>
+
+</header>
+
+<!-- =========================================================
+     HERO
+========================================================= -->
+
+<section class="hero">
+
+<div class="hero-content">
+
+<h1>FELIPE'S <span>ULTIMATE</span> TECH & RACING WORLD</h1>
+
+<p>
+
+A futuristic AI-powered racing and technology universe
+with live news, assignments, dashboards, supercars,
+gaming vibes, engineering, innovation, and productivity tools.
+
+</p>
+
+<div class="hero-buttons">
+
+<button class="btn btn-red">
+ENTER GARAGE
+</button>
+
+<button class="btn btn-blue">
+OPEN DASHBOARD
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================================================
+     LIVE TICKER
+========================================================= -->
+
+<div class="ticker">
+
+<div class="ticker-content">
+
+🏎️ Ferrari reveals futuristic hypercar • ⚡ Tesla battery technology evolves • 🤖 AI systems transform racing analytics • 🚀 SpaceX inspires motorsport engineering • 🎮 Racing simulators becoming ultra realistic • 💻 Felipe X website online •
+
+</div>
+
+</div>
+
+<!-- =========================================================
+     NEWS
+========================================================= -->
+
+<section id="news">
+
+<div class="container">
+
+<div class="section-title">
+
+<h2>LIVE DAILY NEWS</h2>
+
+<p>
+Automatic racing and technology updates
+</p>
+
+</div>
+
+<div class="news-grid" id="newsGrid">
+
+<div class="news-card">
+
+<img src="https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=1200&auto=format&fit=crop">
+
+<div class="news-content">
+
+<h3>🏁 Formula 1 AI Revolution</h3>
+
+<p>
+
+AI systems now predict tire wear, racing strategy,
+and aerodynamics faster than ever before.
+
+</p>
+
+</div>
+
+</div>
+
+<div class="news-card">
+
+<img src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop">
+
+<div class="news-content">
+
+<h3>🤖 Artificial Intelligence Expands</h3>
+
+<p>
+
+Machine learning continues transforming transportation,
+robotics, medicine, and advanced computing.
+
+</p>
+
+</div>
+
+</div>
+
+<div class="news-card">
+
+<img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=1200&auto=format&fit=crop">
+
+<div class="news-content">
+
+<h3>⚡ Hypercars Break Records</h3>
+
+<p>
+
+Electric performance vehicles continue dominating
+speed and acceleration world records.
+
+</p>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================================================
+     DASHBOARD
+========================================================= -->
+
+<section id="dashboard">
+
+<div class="container">
+
+<div class="section-title">
+
+<h2>PERSONAL DASHBOARD</h2>
+
+<p>
+Assignments, productivity, and live racing stats
+</p>
+
+</div>
+
+<div class="dashboard-grid">
+
+<!-- LEFT -->
+
+<div class="panel">
+
+<h3>📅 Assignment Calendar</h3>
+
+<div class="form-group">
+<input type="text" id="title" placeholder="Assignment Title">
+</div>
+
+<div class="form-group">
+<input type="date" id="date">
+</div>
+
+<div class="form-group">
+<textarea id="details" placeholder="Assignment Details"></textarea>
+</div>
+
+<button class="add-btn" onclick="addAssignment()">
+
+Add Assignment
+
+</button>
+
+<div class="assignment-list" id="assignmentList">
+
+</div>
+
+</div>
+
+<!-- RIGHT -->
+
+<div class="panel">
+
+<h3>🚀 Live Stats</h3>
+
+<div class="stats">
+
+<div class="stat-box">
+
+<h4 id="speed">341</h4>
+
+<p>Top Speed</p>
+
+</div>
+
+<div class="stat-box">
+
+<h4 id="rpm">8200</h4>
+
+<p>RPM</p>
+
+</div>
+
+<div class="stat-box">
+
+<h4 id="users">9201</h4>
+
+<p>Visitors</p>
+
+</div>
+
+<div class="stat-box">
+
+<h4 id="tasks">0</h4>
+
+<p>Assignments</p>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================================================
+     GARAGE
+========================================================= -->
+
+<section id="garage">
+
+<div class="container">
+
+<div class="section-title">
+
+<h2>SUPERCAR GARAGE</h2>
+
+<p>
+Legendary futuristic machines
+</p>
+
+</div>
+
+<div class="car-grid">
+
+<div class="car-card">
+
+<img src="https://images.unsplash.com/photo-1544636331-e26879cd4d9b?q=80&w=1200&auto=format&fit=crop">
+
+<div class="car-content">
+
+<h3>Ferrari SF90</h3>
+
+<p>
+Hybrid hypercar combining Formula 1 DNA with futuristic engineering.
+</p>
+
+</div>
+
+</div>
+
+<div class="car-card">
+
+<img src="https://images.unsplash.com/photo-1502877338535-766e1452684a?q=80&w=1200&auto=format&fit=crop">
+
+<div class="car-content">
+
+<h3>McLaren P1</h3>
+
+<p>
+Legendary hybrid supercar designed for maximum speed and track performance.
+</p>
+
+</div>
+
+</div>
+
+<div class="car-card">
+
+<img src="https://images.unsplash.com/photo-1494905998402-395d579af36f?q=80&w=1200&auto=format&fit=crop">
+
+<div class="car-content">
+
+<h3>Lamborghini Revuelto</h3>
+
+<p>
+Aggressive Italian engineering mixed with futuristic hybrid power.
+</p>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================================================
+     TECH
+========================================================= -->
+
+<section id="tech">
+
+<div class="container">
+
+<div class="section-title">
+
+<h2>TECH ZONE</h2>
+
+<p>
+Everything Felipe loves about technology
+</p>
+
+</div>
+
+<div class="tech-grid">
+
+<div class="tech-card">
+
+<div class="tech-icon">💻</div>
+
+<h3>Programming</h3>
+
+<p>
+Build AI apps, websites, games, and futuristic software systems.
+</p>
+
+</div>
+
+<div class="tech-card">
+
+<div class="tech-icon">🤖</div>
+
+<h3>Artificial Intelligence</h3>
+
+<p>
+Machine learning, robotics, and automation systems changing the future.
+</p>
+
+</div>
+
+<div class="tech-card">
+
+<div class="tech-icon">🎮</div>
+
+<h3>Gaming</h3>
+
+<p>
+Ultra realistic racing simulators and next-gen gaming setups.
+</p>
+
+</div>
+
+<div class="tech-card">
+
+<div class="tech-icon">🚀</div>
+
+<h3>Innovation</h3>
+
+<p>
+Space technology, engineering, and futuristic transportation systems.
+</p>
+
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================================================
+     TERMINAL
+========================================================= -->
+
+<section>
+
+<div class="container">
+
+<div class="section-title">
+
+<h2>AI TERMINAL</h2>
+
+<p>
+Live futuristic system monitor
+</p>
+
+</div>
+
+<div class="terminal">
+
+<div class="terminal-line">
+> Initializing Felipe X AI Core...
+</div>
+
+<div class="terminal-line">
+> Hypercar analytics online...
+</div>
+
+<div class="terminal-line">
+> Live motorsport updates connected...
+</div>
+
+<div class="terminal-line">
+> Neural systems operational...
+</div>
+
+<div class="terminal-line">
+> Welcome Felipe.
+</div>
+
+</div>
+
+</div>
+
+</section>
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<footer>
+
+<h2>FELIPE X</h2>
+
+<p>
+
+Technology • Racing • Gaming • AI • Innovation • Future Engineering
+
+</p>
+
+<br>
+
+<p>
+
+© 2026 Felipe X Universe
+
+</p>
+
+</footer>
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================= -->
+
+<script>
+
+/* =========================================================
+   ASSIGNMENTS
+========================================================= */
+
+let assignmentCounter = 0;
+
+function addAssignment(){
+
+const title = document.getElementById("title").value;
+const date = document.getElementById("date").value;
+const details = document.getElementById("details").value;
+
+if(title === "" || date === "" || details === ""){
+
+alert("Please fill all fields.");
+
+return;
+
+}
+
+const assignment = document.createElement("div");
+
+assignment.classList.add("assignment");
+
+assignment.innerHTML = `
+
+<h4>${title}</h4>
+
+<p><strong>Due:</strong> ${date}</p>
+
+<p>${details}</p>
+
+<button class="delete-btn">
+Delete
+</button>
+
+`;
+
+assignment.querySelector(".delete-btn").onclick = function(){
+
+assignment.remove();
+
+assignmentCounter--;
+
+document.getElementById("tasks").innerText = assignmentCounter;
+
+};
+
+document.getElementById("assignmentList").prepend(assignment);
+
+assignmentCounter++;
+
+document.getElementById("tasks").innerText = assignmentCounter;
+
+document.getElementById("title").value = "";
+document.getElementById("date").value = "";
+document.getElementById("details").value = "";
+
+}
+
+/* =========================================================
+   LIVE STATS
+========================================================= */
+
+setInterval(()=>{
+
+document.getElementById("speed").innerText =
+320 + Math.floor(Math.random()*40);
+
+document.getElementById("rpm").innerText =
+7000 + Math.floor(Math.random()*2000);
+
+document.getElementById("users").innerText =
+parseInt(document.getElementById("users").innerText)
++ Math.floor(Math.random()*5);
+
+},2000);
+
+/* =========================================================
+   LIVE NEWS
+========================================================= */
+
+const newsData = [
+
+{
+title:"🏁 Red Bull introduces new aero package",
+text:"Advanced aerodynamics increase cornering speed and race efficiency."
+},
+
+{
+title:"⚡ Tesla develops next generation battery",
+text:"Solid-state batteries promise incredible charging performance."
+},
+
+{
+title:"🤖 AI racing assistants evolve",
+text:"Artificial intelligence improves strategy and predictive analytics."
+},
+
+{
+title:"🚀 Space technology inspires motorsport",
+text:"Aerospace engineering influences modern race car design."
+}
+
+];
+
+setInterval(()=>{
+
+const random = Math.floor(Math.random()*newsData.length);
+
+const newsCard = document.createElement("div");
+
+newsCard.classList.add("news-card");
+
+newsCard.innerHTML = `
+
+<img src="https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=1200&auto=format&fit=crop">
+
+<div class="news-content">
+
+<h3>${newsData[random].title}</h3>
+
+<p>${newsData[random].text}</p>
+
+</div>
+
+`;
+
+const grid = document.getElementById("newsGrid");
+
+grid.prepend(newsCard);
+
+if(grid.children.length > 6){
+
+grid.removeChild(grid.lastElementChild);
+
+}
+
+},7000);
+
+/* =========================================================
+   TERMINAL ANIMATION
+========================================================= */
+
+const lines = [
+
+"> AI monitoring active...",
+"> Hypercar systems stable...",
+"> Downloading racing telemetry...",
+"> Neural processing optimized...",
+"> Satellite systems online..."
+
+];
+
+setInterval(()=>{
+
+const terminal = document.querySelector(".terminal");
+
+const div = document.createElement("div");
+
+div.classList.add("terminal-line");
+
+div.innerText =
+lines[Math.floor(Math.random()*lines.length)];
+
+terminal.appendChild(div);
+
+if(terminal.children.length > 12){
+
+terminal.removeChild(terminal.children[0]);
+
+}
+
+},3000);
+
+</script>
+
+</body>
+
+</html>

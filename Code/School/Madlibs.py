@@ -1,0 +1,10 @@
+print ("-------------------")
+print (" Welcome to Dark stories")
+adjective = input("Adjective: ")
+person = input("Give me a person:")
+location = input("Location:")
+assasin = input("assasin:")
+
+print("One", adjective, "day of winter.", person, "was walking in the", location, "but there was a mysterious figure." )
+print(" It was ",assasin," that wanted to kill it.")
+print(" It was never seen again 😭😭")

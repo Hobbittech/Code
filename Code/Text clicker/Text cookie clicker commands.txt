@@ -1,0 +1,17 @@
+spacebar → click the cookie
+
+shop → see upgrades
+
+buy cursor → buy an upgrade
+buy grandma → buy an upgrade
+buy farm → buy an upgrade
+buy mine → buy an upgrade
+
+
+status → show stats
+
+wait 10 → simulate 10 seconds of CPS
+
+ascend → prestige for permanent multiplier
+
+save / load / quit

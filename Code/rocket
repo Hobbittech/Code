@@ -1,0 +1,98 @@
+import pygame
+import math
+import sys
+
+# Initialize Pygame
+pygame.init()
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Rocket Trajectory Simulator")
+
+# Colors
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+
+# Physics constants
+g = 9.81  # gravity (m/s^2)
+scale = 50  # pixels per meter
+
+# Rocket parameters
+start_pos = (50, HEIGHT - 50)
+velocity = 50  # m/s
+
+def get_trajectory(angle_deg, v0):
+    angle_rad = math.radians(angle_deg)
+    vx = v0 * math.cos(angle_rad)
+    vy = v0 * math.sin(angle_rad)
+    points = []
+    t = 0
+    dt = 0.01  # Smaller time step for slower animation
+    x0, y0 = 0, 0
+    while True:
+        x = vx * t
+        y = vy * t - 0.5 * g * t * t
+        if y < 0:
+            break
+        px = start_pos[0] + x * scale
+        py = start_pos[1] - y * scale
+        points.append((int(px), int(py)))
+        t += dt
+    return points
+
+def main():
+    clock = pygame.time.Clock()
+    angle = 45  # default angle
+    font = pygame.font.SysFont(None, 28)
+
+    flying = False
+    flight_index = 0
+    points = get_trajectory(angle, velocity)
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if not flying:
+                    if event.key == pygame.K_UP:
+                        angle = min(angle + 1, 89)
+                        points = get_trajectory(angle, velocity)
+                    elif event.key == pygame.K_DOWN:
+                        angle = max(angle - 1, 1)
+                        points = get_trajectory(angle, velocity)
+                    elif event.key == pygame.K_RETURN:
+                        flying = True
+                        flight_index = 0
+
+        screen.fill(WHITE)
+
+        # Draw ground
+        pygame.draw.line(screen, BLUE, (0, HEIGHT - 50), (WIDTH, HEIGHT - 50), 2)
+
+        # Draw trajectory
+        if len(points) > 1:
+            pygame.draw.lines(screen, RED, False, points, 2)
+
+        # Draw rocket
+        if flying:
+            if flight_index < len(points):
+                rocket_pos = points[flight_index]
+                pygame.draw.circle(screen, BLUE, rocket_pos, 8)
+                flight_index += 1
+            else:
+                flying = False
+                flight_index = 0
+        else:
+            pygame.draw.circle(screen, BLUE, start_pos, 8)
+
+        # Display angle
+        angle_text = font.render(f"Angle: {angle} deg (UP/DOWN to change, ENTER to launch)", True, (0, 0, 0))
+        screen.blit(angle_text, (10, 10))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+if __name__ == "__main__":
+    main()

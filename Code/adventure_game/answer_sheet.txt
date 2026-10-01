@@ -1,0 +1,91 @@
+Adventure Game Answer Sheet
+==========================
+
+How to Play & Navigation:
+-------------------------
+- Move using: north, east, south, west, up, down, in, out
+  Example: To go north, type 'north'.
+- Use 'look' in each room to see exits, items, NPCs, and enemies.
+- Use 'map' to see your current room and all available directions.
+- Use 'inventory' to check your items.
+- Use 'health' to check your health.
+- Use 'talk [npc]' to interact with characters.
+- Use 'use [item]' in the right place (rope at cliff, torch in cave, etc).
+- Use 'quit' to exit the game.
+
+Major Areas & Directions:
+-------------------------
+1. Starting Room (start)
+2. Library (north_room) - north from start
+3. Armory (armory) - east from library
+4. Tower (tower) - north from library
+5. Garden (garden) - east from east_room
+6. Merchant Stall (merchant_stall) - east from garden
+7. Forest Edge (forest_edge) - north from garden
+8. Deep Forest (deep_forest) - north from forest_edge
+9. River Bank (river_bank) - east from deep_forest
+10. Old Bridge (old_bridge) - east from river_bank
+11. Ruins (ruins) - east from old_bridge
+12. Haunted House (haunted_house) - north from ruins
+13. Attic (attic) - up from haunted_house
+14. Secret Tunnel (secret_tunnel) - down from ruins
+15. Underground Lake (underground_lake) - north from secret_tunnel
+16. Village Square (village_square) - south from castle_gate
+17. Castle Gate (castle_gate) - north from village_square
+18. Castle Hall (castle_hall) - north from castle_gate
+19. Throne Room (throne_room) - north from castle_hall
+20. Farm (farm) - south from village_square
+21. Meadow (meadow) - east from farm
+22. Forest Clearing (forest_clearing) - east from meadow
+23. Enchanted Forest (enchanted_forest) - north from forest_clearing
+24. Mountain Pass (mountain_pass) - north from enchanted_forest
+25. Mines (mines) - north from mountain_pass
+26. Deep Mines (deep_mines) - east from mines
+
+Walkthrough & Quests (Step-by-Step):
+------------------------------------
+1. Get the key in the library (north_room).
+2. Go east to east_room, use the key to open the chest, take the sword.
+3. Go east to garden, take the gold coin.
+4. Go north to final_gate. You need a shield to pass.
+5. Go back to library, then east to armory, take the shield.
+6. Go west to west_room, defeat the goblin (use sword).
+7. Go north to treasure_room, take the rope.
+8. Go west to cliff_edge, use rope to climb down to cave_entrance.
+9. Take the torch in cave_entrance, use it in deep_cave to see.
+10. Go in to deep_cave, defeat the giant spider, take the ancient amulet.
+11. Go up to cliff_edge, then back to tower (north from library), take potion.
+12. Go up to wizard_lab, talk to wizard, take magic ring.
+13. Go back to garden, east to merchant_stall, trade gold coin for potion.
+14. Go north to final_gate, use shield to pass, climb mountain_path.
+15. Go up to dragon_lair, defeat dragon (must have magic ring), take dragon egg.
+16. Explore forest: north from garden to forest_edge, take herbs.
+17. North to deep_forest, defeat wild boar, east to river_bank, take fishing rod.
+18. East to old_bridge, east to ruins, take silver key.
+19. North to haunted_house, defeat ghost, up to attic, take diary.
+20. Down to secret_tunnel, north to underground_lake, defeat giant eel, take pearl.
+21. South to village_square, take bread, talk to baker.
+22. East to inn, rest to restore health, talk to innkeeper.
+23. West to blacksmith, bring ore from mountain_pass/mines to upgrade sword.
+24. South to farm, east to meadow, defeat wolf, take wool, return to farmer for reward.
+25. East to forest_clearing, meet fairy, take healing flower.
+26. North to enchanted_forest, defeat unicorn, take magic scroll.
+27. North to mountain_pass, take rare ore, north to mines, take gem and ore.
+28. East to deep_mines, defeat bat and goblin king, take treasure chest.
+29. North to castle_hall (must have gem), talk to king, accept quest to defeat dragon and bring dragon egg.
+30. Complete king's quest for ultimate victory.
+
+Tips & Secrets:
+---------------
+- Use 'look' in every room to find items, NPCs, and exits.
+- Use 'map' to see your current location and directions.
+- Upgrade your sword at the blacksmith for easier battles.
+- Rest at the inn to restore health if needed.
+- Help villagers for extra rewards and items.
+- Collect gems, scrolls, and rare items for castle entry and king's quest.
+- Explore all areas for secrets, treasures, and side quests.
+
+Victory:
+--------
+- Survive all enemies, complete the king's quest, collect treasures, and explore every area.
+- Find all secrets and side quests for the best ending!
