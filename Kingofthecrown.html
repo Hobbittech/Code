@@ -95,6 +95,12 @@
   }
   .statrow{display:flex; justify-content:space-between; font-size:14.5px; margin:3px 0;}
   .statrow b{color:var(--burgundy-dark);}
+  #actionBtns{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:10px;
+  }
   #log{
     height:260px;
     overflow-y:auto;
@@ -102,6 +108,8 @@
     line-height:1.4;
     padding-right:4px;
   }
+  #log::-webkit-scrollbar { width:8px; }
+  #log::-webkit-scrollbar-thumb { background:rgba(110,31,36,0.45); border-radius:999px; }
   #log .turnhead{
     font-family:'Cinzel', serif;
     font-size:12px;
@@ -132,13 +140,14 @@
   button:disabled{opacity:0.4; cursor:not-allowed;}
   button.secondary{background:linear-gradient(180deg,#3a4a3d,#20281f); color:#e9dcb9;}
   button.gold{background:linear-gradient(180deg,#c99a2e,#8a6417); color:#2b1f14;}
-  #selInfo{font-size:13.5px; min-height:40px;}
+  #selInfo{font-size:13.5px; min-height:40px; line-height:1.5;}
   .legend{display:flex; flex-wrap:wrap; gap:8px; font-size:12.5px;}
   .legend span{display:flex; align-items:center; gap:5px;}
   .swatch{width:11px; height:11px; border-radius:2px; border:1px solid #2b1f14; display:inline-block;}
   #overlay{
     position:absolute; inset:0;
     background:rgba(10,6,3,0.78);
+    backdrop-filter: blur(2px);
     display:none;
     align-items:center;
     justify-content:center;
@@ -185,9 +194,14 @@
   .diffChoices{display:flex; gap:12px; justify-content:center; margin:16px 0 6px; flex-wrap:wrap;}
   .diffCard{
     border:2px solid var(--gold); border-radius:6px; padding:12px 16px; width:150px;
-    background:rgba(255,250,235,0.6); cursor:pointer; transition:transform 0.1s ease;
+    background:rgba(255,250,235,0.6); cursor:pointer; transition:transform 0.1s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   }
   .diffCard:hover{transform:translateY(-2px); filter:brightness(1.06);}
+  .diffCard.selected{
+    border-color: var(--burgundy-dark);
+    background:linear-gradient(180deg, rgba(255,248,222,0.94), rgba(234,212,152,0.75));
+    box-shadow:0 0 0 3px rgba(110,31,36,0.12);
+  }
   .diffCard h4{margin:0 0 6px; font-family:'Cinzel', serif; color:var(--burgundy-dark);}
   .diffCard p{margin:0; font-size:12.5px; line-height:1.4;}
   .codeBox{
@@ -408,6 +422,23 @@
     $("turnNum").textContent = state.turn;
     $("diffStat").textContent = DIFFICULTY[state.difficulty].label;
     $("recruitBtn").disabled = state.gold < 50;
+  }
+
+  function updateDifficultySelection(){
+    document.querySelectorAll(".diffCard").forEach(card => {
+      const isSelected = card.dataset.diff === state.difficulty;
+      card.classList.toggle("selected", isSelected);
+      card.setAttribute("aria-pressed", String(isSelected));
+    });
+  }
+
+  function chooseBestFrontierTerritory(owner){
+    const owned = ownedTerritories(owner);
+    if(!owned.length) return null;
+    const frontier = owned.filter(t => ADJ[t.id].some(n => T[n].owner !== owner));
+    if(!frontier.length) return owned.sort((a,b)=>a.army-b.army)[0];
+    frontier.sort((a,b)=>a.army-b.army);
+    return frontier[0];
   }
 
   // ---------- Canvas: map rendering ----------
@@ -665,12 +696,15 @@
       }
       const neighborsFriendly = ADJ[t.id].filter(n=>T[n].owner==="player");
       if(neighborsFriendly.length && t.army>1){
+        const targets = neighborsFriendly
+          .map(id => ({ id, garrison: T[id].army }))
+          .sort((a,b)=> a.garrison - b.garrison);
+        const dest = targets[0].id;
         const b = document.createElement("button");
         b.className="secondary";
         b.textContent = "Reinforce neighbor (-3 here)";
         b.disabled = t.army <= 3;
         b.onclick = ()=>{
-          const dest = neighborsFriendly[0];
           T[t.id].army -= 3;
           T[dest].army += 3;
           log(`Knights march from <b>${t.name}</b> to <b>${T[dest].name}</b>.`);
@@ -888,12 +922,11 @@
   $("recruitBtn").onclick = ()=>{
     if(state.gold < 50) return;
     state.gold -= 50;
-    // add to a random owned territory (frontier bias: smallest garrison)
     const owned = ownedTerritories("player");
     if(owned.length===0) return;
-    owned.sort((a,b)=>a.army-b.army);
-    owned[0].army += 5;
-    log(`⚜️ 5 new knights are levied for <b>50 gold</b> and sent to <b>${owned[0].name}</b> (now ${owned[0].army} strong). Treasury: ${state.gold}g.`);
+    const target = chooseBestFrontierTerritory("player") || owned.sort((a,b)=>a.army-b.army)[0];
+    target.army += 5;
+    log(`⚜️ 5 new knights are levied for <b>50 gold</b> and posted at <b>${target.name}</b> (now ${target.army} strong). Treasury: ${state.gold}g.`);
     updateStats(); drawMap(); renderSelection();
   };
 
@@ -1071,6 +1104,7 @@
   function startGame(diffKey){
     state.difficulty = diffKey;
     state.gold = DIFFICULTY[diffKey].startGold;
+    updateDifficultySelection();
     hideOverlay();
     updateStats();
     renderSelection();
@@ -1083,8 +1117,14 @@
   function init(){
     renderLegend();
     drawMap();
+    state.difficulty = "normal";
+    updateDifficultySelection();
     document.querySelectorAll(".diffCard").forEach(card=>{
-      card.addEventListener("click", ()=> startGame(card.dataset.diff));
+      card.addEventListener("click", ()=> {
+        state.difficulty = card.dataset.diff;
+        updateDifficultySelection();
+        startGame(card.dataset.diff);
+      });
     });
     showModal("startPanel");
   }
