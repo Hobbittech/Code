@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON HANDS — Gesture 3D Editor</title>
+<style>
+  :root{
+    --bg:#02040a;
+    --panel:rgba(6,14,30,.72);
+    --edge:rgba(0,180,255,.28);
+    --neon:#00c8ff;
+    --neon2:#0891ff;
+    --dim:#7fa8c9;
+    --hot:#4df0ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:
+      radial-gradient(1200px 700px at 70% -10%, rgba(8,60,120,.30), transparent 60%),
+      radial-gradient(900px 600px at 10% 110%, rgba(0,80,140,.18), transparent 60%),
+      var(--bg);
+    color:var(--dim);
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  canvas#gl{position:fixed;inset:0;display:block}
+  .vignette{position:fixed;inset:0;pointer-events:none;
+    box-shadow:inset 0 0 220px rgba(0,0,0,.85), inset 0 0 60px rgba(0,40,80,.25);
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px);}
+  .scanlines-top{position:fixed;top:0;left:0;right:0;height:2px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(0,200,255,.55),transparent);
+    animation:sweep 5s linear infinite;opacity:.5}
+  @keyframes sweep{0%{transform:translateY(0)}100%{transform:translateY(100vh)}}
+
+  .panel{
+    position:fixed;background:var(--panel);border:1px solid var(--edge);
+    border-radius:12px;backdrop-filter:blur(10px);
+    box-shadow:0 0 24px rgba(0,140,255,.10), inset 0 0 18px rgba(0,120,255,.05);
+  }
+  .panel h3{font-size:10px;letter-spacing:.28em;color:var(--neon);font-weight:600;
+    text-transform:uppercase;padding:9px 12px 7px;border-bottom:1px solid rgba(0,150,255,.15)}
+
+  /* ---------- top bar ---------- */
+  #topbar{top:14px;left:50%;transform:translateX(-50%);display:flex;gap:26px;align-items:center;
+    padding:9px 22px;z-index:20}
+  #topbar .logo{font-weight:800;letter-spacing:.32em;color:var(--hot);
+    text-shadow:0 0 14px rgba(0,200,255,.8);font-size:14px}
+  #topbar .logo span{color:var(--dim);font-weight:400;letter-spacing:.14em;font-size:10px;margin-left:8px}
+  #fps{font-size:10px;letter-spacing:.15em;color:var(--neon);min-width:70px;text-align:right}
+
+  /* ---------- camera / scanner ---------- */
+  #camPanel{bottom:16px;left:16px;width:264px;z-index:20;overflow:hidden}
+  #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);
+    opacity:.30;filter:grayscale(1) contrast(1.15)}
+  #handCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:2}
+  .camHud{position:relative;height:198px;background:#01040c;z-index:1}
+  .camHud .corner{position:absolute;width:16px;height:16px;border:1.5px solid var(--neon);z-index:3;opacity:.9}
+  .c-tl{top:6px;left:6px;border-right:0;border-bottom:0}
+  .c-tr{top:6px;right:6px;border-left:0;border-bottom:0}
+  .c-bl{bottom:6px;left:6px;border-right:0;border-top:0}
+  .c-br{bottom:6px;right:6px;border-left:0;border-top:0}
+  #camStatus{position:relative;z-index:3;display:flex;justify-content:space-between;align-items:center;
+    padding:7px 10px;font-size:9px;letter-spacing:.18em;border-top:1px solid rgba(0,150,255,.15)}
+  #camState{color:var(--neon)}
+  #camState.err{color:#ff5470}
+  .scanBeam{position:absolute;left:0;right:0;height:56px;z-index:2;pointer-events:none;opacity:.35;
+    background:linear-gradient(180deg,transparent,rgba(0,190,255,.5),transparent);
+    animation:beam 2.6s ease-in-out infinite}
+  @keyframes beam{0%,100%{top:8%}50%{top:70%}}
+
+  /* ---------- gesture readout ---------- */
+  #gesturePanel{bottom:16px;left:296px;width:212px;z-index:20;padding-bottom:8px}
+  #bigGesture{font-size:21px;font-weight:800;color:var(--hot);padding:10px 12px 2px;
+    text-shadow:0 0 16px rgba(0,220,255,.75);letter-spacing:.05em;min-height:30px}
+  #gestureMeta{font-size:9.5px;letter-spacing:.16em;color:var(--dim);padding:0 12px 6px;min-height:14px}
+  #confidenceBar{margin:2px 12px 8px;height:3px;background:rgba(0,150,255,.15);border-radius:2px;overflow:hidden}
+  #confidenceFill{height:100%;width:0%;background:linear-gradient(90deg,var(--neon2),var(--hot));
+    box-shadow:0 0 10px var(--neon);transition:width .15s}
+
+  /* ---------- object editor ---------- */
+  #objPanel{top:14px;right:16px;width:212px;z-index:20;padding-bottom:10px}
+  #objPanel .row{display:flex;justify-content:space-between;align-items:center;
+    padding:7px 12px 0;font-size:11px}
+  #objPanel .row b{color:#cfeaff;font-weight:600;font-size:11px}
+  #objPanel .row button{background:rgba(0,120,255,.10);border:1px solid var(--edge);color:var(--neon);
+    font-size:9px;letter-spacing:.14em;padding:4px 8px;border-radius:5px;cursor:pointer;transition:.15s}
+  #objPanel .row button:hover{background:rgba(0,160,255,.25);color:#fff;box-shadow:0 0 10px rgba(0,180,255,.5)}
+
+  /* ---------- gesture cheat sheet ---------- */
+  #helpPanel{top:14px;left:16px;width:224px;z-index:20}
+  .gRow{display:flex;gap:9px;align-items:center;padding:5.5px 12px;font-size:10px;letter-spacing:.04em}
+  .gRow .ic{width:22px;text-align:center;font-size:15px;filter:drop-shadow(0 0 5px rgba(0,200,255,.8))}
+  .gRow .nm{color:#bfe3ff;font-weight:600;min-width:78px}
+  .gRow .ds{color:var(--dim)}
+  .gRow.active{background:linear-gradient(90deg,rgba(0,180,255,.18),transparent)}
+  .gRow.active .nm{color:var(--hot)}
+
+  /* ---------- telemetry ---------- */
+  .teleRow{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:9px;letter-spacing:.16em}
+  .teleRow .lbl{width:52px;color:var(--dim)}
+  .teleBar{flex:1;height:4px;background:rgba(0,150,255,.14);border-radius:2px;overflow:hidden}
+  .teleBar i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#0891ff,#4df0ff);
+    box-shadow:0 0 8px rgba(0,200,255,.7);transition:width .1s linear}
+
+  /* ---------- toasts ---------- */
+  #toasts{position:fixed;top:70px;right:16px;z-index:40;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .toast{background:rgba(4,12,26,.92);border:1px solid var(--edge);border-left:3px solid var(--neon);
+    color:#d6f2ff;font-size:11px;letter-spacing:.06em;padding:8px 14px;border-radius:8px;
+    animation:tIn .25s ease-out;box-shadow:0 0 18px rgba(0,160,255,.25)}
+  .toast.warn{border-left-color:#ffb14d}
+  @keyframes tIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+
+  /* ---------- boot overlay ---------- */
+  #boot{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;gap:18px;
+    align-items:center;justify-content:center;background:rgba(1,3,9,.94);text-align:center;padding:24px}
+  #boot h1{color:var(--hot);letter-spacing:.4em;font-size:30px;font-weight:800;
+    text-shadow:0 0 30px rgba(0,200,255,.9)}
+  #boot p{max-width:540px;font-size:12.5px;line-height:1.75;letter-spacing:.05em;color:var(--dim)}
+  #boot .btns{display:flex;gap:14px;margin-top:6px}
+  .bigBtn{background:rgba(0,120,255,.10);border:1px solid var(--neon);color:var(--hot);
+    font-size:12px;letter-spacing:.22em;padding:13px 26px;border-radius:9px;cursor:pointer;
+    text-transform:uppercase;transition:.2s;font-weight:700}
+  .bigBtn:hover{background:rgba(0,180,255,.28);box-shadow:0 0 26px rgba(0,200,255,.55);color:#fff}
+  .bigBtn.ghost{border-color:rgba(0,150,255,.35);color:var(--dim)}
+  .bigBtn.ghost:hover{color:var(--hot)}
+  #boot .fine{font-size:10px;letter-spacing:.14em;color:#4b6b85}
+  #loadingStage{font-size:10px;letter-spacing:.3em;color:var(--neon);min-height:14px}
+
+  .hidden{display:none !important}
+  @media (max-width:900px){ #helpPanel{display:none} #gesturePanel{left:16px;bottom:240px;width:264px} }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div class="vignette"></div>
+<div class="scanlines-top"></div>
+
+<div id="topbar" class="panel">
+  <div class="logo">NEON<span>HANDS</span><span>· GESTURE 3D EDITOR</span></div>
+  <div id="fps">-- FPS</div>
+</div>
+
+<div id="helpPanel" class="panel">
+  <h3>Gestures</h3>
+  <div id="helpRows"></div>
+  <h3 style="border-top:1px solid rgba(0,150,255,.15)">Telemetry</h3>
+  <div class="teleRow"><span class="lbl">TRACK</span><div class="teleBar"><i id="tTrack"></i></div></div>
+  <div class="teleRow"><span class="lbl">PINCH</span><div class="teleBar"><i id="tPinch"></i></div></div>
+  <div class="teleRow"><span class="lbl">OPEN</span><div class="teleBar"><i id="tOpen"></i></div></div>
+</div>
+
+<div id="camPanel" class="panel">
+  <div class="camHud">
+    <video id="video" playsinline muted></video>
+    <canvas id="handCanvas"></canvas>
+    <div class="scanBeam"></div>
+    <div class="corner c-tl"></div><div class="corner c-tr"></div>
+    <div class="corner c-bl"></div><div class="corner c-br"></div>
+  </div>
+  <div id="camStatus"><span id="camState">CAMERA OFFLINE</span><span id="handCount">0 HANDS</span></div>
+</div>
+
+<div id="gesturePanel" class="panel">
+  <h3>Active Gesture</h3>
+  <div id="bigGesture">—</div>
+  <div id="gestureMeta">awaiting input…</div>
+  <div id="confidenceBar"><div id="confidenceFill"></div></div>
+</div>
+
+<div id="objPanel" class="panel">
+  <h3>Object</h3>
+  <div class="row"><b id="objName">Cube</b><button id="btnShape">SHAPE</button></div>
+  <div class="row"><span>Color</span><button id="btnColor">SHIFT</button></div>
+  <div class="row"><span>Auto-spin</span><button id="btnSpin">ON</button></div>
+  <div class="row"><span>Wireframe</span><button id="btnWire">OFF</button></div>
+  <div class="row"><span>Screenshot</span><button id="btnShot">SAVE</button></div>
+</div>
+
+<div id="toasts"></div>
+
+<div id="boot">
+  <h1>NEON HANDS</h1>
+  <p>
+    A holographic workstation: your webcam becomes a hand scanner, and your fingers become
+    the mouse. <b style="color:#bfe3ff">Pinch</b> to grab the object and drag it through space —
+    open your palm to scale it, make a fist to squash it, point to spin it, throw a ✌️ to
+    morph its geometry, 👍 for a confirmation flash.
+  </p>
+  <p style="font-size:11px">No camera? <b style="color:#4df0ff">Demo Mode</b> drives the full gesture engine with a simulated hand so you can see every feature. Mouse also works: drag to orbit, scroll to zoom.</p>
+  <div class="btns">
+    <button class="bigBtn" id="btnStartCam">▶ Start Hand Scanner</button>
+    <button class="bigBtn ghost" id="btnDemo">Demo Mode</button>
+  </div>
+  <div id="loadingStage"></div>
+  <div class="fine">WEB_CAM_REQUIRED_FOR_TRACKING · LOCAL_PROCESSING_ONLY</div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
+import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+
+/* ============================== utils ============================== */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const dampF=(cur,target,lambda,dt)=>lerp(cur,target,1-Math.exp(-lambda*dt));
+
+function toast(msg,warn=false){
+  const t=document.createElement('div');
+  t.className='toast'+(warn?' warn':''); t.textContent=msg;
+  $('toasts').appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .3s';t.style.opacity='0';
+    setTimeout(()=>t.remove(),320)},2400);
+}
+
+/* ============================ audio ============================ */
+let AC=null;
+function beep(freq=880,dur=.07,type='sine',gain=.05){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const o=AC.createOscillator(),g=AC.createGain();
+    o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(gain,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+dur);
+    o.connect(g).connect(AC.destination);o.start();o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+const SFX={
+  grab:()=>beep(520,.08,'triangle',.07),
+  drop:()=>beep(300,.1,'triangle',.05),
+  ui:()=>beep(900,.05,'square',.03),
+  morph:()=>beep(660,.12,'sawtooth',.04),
+  flash:()=>{beep(880,.1,'sine',.05);setTimeout(()=>beep(1320,.12,'sine',.04),70)},
+  err:()=>beep(160,.2,'square',.05),
+};
+
+/* ============================== three.js scene ============================== */
+const renderer=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.1;
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x02040a,.045);
+
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,300);
+camera.position.set(0,2.0,5.6);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.06;
+controls.minDistance=2.2;controls.maxDistance=18;controls.maxPolarAngle=Math.PI*.55;
+controls.target.set(0,1.0,0);
+
+/* ---------- post-processing: bloom ---------- */
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.9,.5,.12);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* ---------- lights ---------- */
+scene.add(new THREE.HemisphereLight(0x3aa0ff,0x02040a,.8));
+const key=new THREE.DirectionalLight(0x66d5ff,1.5);key.position.set(4,6,3);scene.add(key);
+const rim=new THREE.DirectionalLight(0x0055ff,1.2);rim.position.set(-5,3,-4);scene.add(rim);
+
+/* ---------- floor: grid + platform rings ---------- */
+const grid=new THREE.GridHelper(60,60,0x00c8ff,0x063a5c);
+grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
+const platform=new THREE.Group();
+for(let i=0;i<3;i++){
+  const r=1.5+i*.9;
+  const ring=new THREE.Mesh(
+    new THREE.RingGeometry(r-.02,r,96),
+    new THREE.MeshBasicMaterial({color:0x00c8ff,transparent:true,opacity:.32-.09*i,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=.005+i*.002;platform.add(ring);
+}
+const glowDisc=new THREE.Mesh(
+  new THREE.CircleGeometry(1.45,64),
+  new THREE.MeshBasicMaterial({color:0x00c8ff,transparent:true,opacity:.07,side:THREE.DoubleSide}));
+glowDisc.rotation.x=-Math.PI/2;glowDisc.position.y=.004;platform.add(glowDisc);
+scene.add(platform);
+
+/* ---------- starfield + floating dust ---------- */
+function makePoints(N,size,spread,color,opacity){
+  const pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    const r=spread+Math.random()*spread*2,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+    pos[i*3]=r*Math.sin(ph)*Math.cos(th);
+    pos[i*3+1]=Math.abs(r*Math.cos(ph))*.7+1;
+    pos[i*3+2]=r*Math.sin(ph)*Math.sin(th);
+  }
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  return new THREE.Points(g,new THREE.PointsMaterial({color,size,transparent:true,opacity,
+    blending:THREE.AdditiveBlending,depthWrite:false}));
+}
+const stars=makePoints(1100,.18,30,0x4db8ff,.75);scene.add(stars);
+const dust=makePoints(180,.05,3,0x9be8ff,.5);scene.add(dust);
+
+/* ---------- sentinel drones orbiting ---------- */
+const drones=[];
+for(let i=0;i<6;i++){
+  const g=new THREE.Group();
+  const core=new THREE.Mesh(new THREE.OctahedronGeometry(.09,0),
+    new THREE.MeshStandardMaterial({color:0x0a2a44,emissive:0x00c8ff,emissiveIntensity:1.6,metalness:.6,roughness:.3}));
+  const halo=new THREE.Mesh(new THREE.RingGeometry(.14,.16,32),
+    new THREE.MeshBasicMaterial({color:0x00e0ff,transparent:true,opacity:.55,side:THREE.DoubleSide}));
+  g.add(core,halo);scene.add(g);drones.push({g,halo,
+    a:Math.random()*Math.PI*2, spd:.25+Math.random()*.35,
+    r:2.6+Math.random()*2.2, h:.8+Math.random()*2.2, ph:Math.random()*Math.PI*2});
+}
+
+/* ============================ editable object ============================ */
+const GEOMETRIES=[
+  ['Cube',()=>new THREE.BoxGeometry(1.35,1.35,1.35,3,3,3)],
+  ['Sphere',()=>new THREE.SphereGeometry(.95,48,32)],
+  ['Torus',()=>new THREE.TorusGeometry(.8,.3,24,72)],
+  ['Torus Knot',()=>new THREE.TorusKnotGeometry(.68,.22,140,20)],
+  ['Icosahedron',()=>new THREE.IcosahedronGeometry(.98,1)],
+  ['Octahedron',()=>new THREE.OctahedronGeometry(1.0,0)],
+];
+const state={
+  geoIndex:0, hue:.55, spin:true, wire:false,
+  scale:1, targetScale:1,
+  pos:new THREE.Vector3(0,1.0,0), targetPos:new THREE.Vector3(0,1.0,0),
+  rotX:0,rotZ:0,rotY:0, squash:1, grabbed:false,
+};
+const mat=new THREE.MeshStandardMaterial({
+  color:new THREE.Color().setHSL(state.hue,.95,.6),
+  metalness:.7,roughness:.2,
+  emissive:new THREE.Color().setHSL(state.hue,.9,.25),emissiveIntensity:.9,
+});
+let mesh=new THREE.Mesh(GEOMETRIES[0][1](),mat);scene.add(mesh);
+function rebuildMesh(){
+  mesh.geometry.dispose();
+  mesh.geometry=GEOMETRIES[state.geoIndex][1]();
+}
+const cageMat=new THREE.MeshBasicMaterial({color:0x00c8ff,wireframe:true,transparent:true,opacity:.14});
+let cage=new THREE.Mesh(GEOMETRIES[0][1](),cageMat);scene.add(cage);
+function rebuildCage(){
+  cage.geometry.dispose();
+  cage.geometry=GEOMETRIES[state.geoIndex][1]();
+}
+function rebuildAll(){rebuildMesh();rebuildCage();$('objName').textContent=GEOMETRIES[state.geoIndex][0];}
+
+/* selection ring + vertical beam under object */
+const ring=new THREE.Mesh(
+  new THREE.RingGeometry(1.0,1.14,64),
+  new THREE.MeshBasicMaterial({color:0x00e0ff,transparent:true,opacity:.55,side:THREE.DoubleSide}));
+ring.rotation.x=-Math.PI/2;ring.position.y=.012;scene.add(ring);
+const beam=new THREE.Mesh(
+  new THREE.CylinderGeometry(.02,.02,4,8,1,true),
+  new THREE.MeshBasicMaterial({color:0x00c8ff,transparent:true,opacity:.0,blending:THREE.AdditiveBlending,depthWrite:false}));
+scene.add(beam);
+
+/* particle burst system */
+const burst={list:[],geo:new THREE.SphereGeometry(.03,6,6)};
+function spawnBurst(pos,n=26,power=1){
+  for(let i=0;i<n;i++){
+    const m=new THREE.Mesh(burst.geo,
+      new THREE.MeshBasicMaterial({color:0x4df0ff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+    m.position.copy(pos);
+    const dir=new THREE.Vector3().randomDirection();
+    burst.list.push({m,v:dir.multiplyScalar((1.5+Math.random()*2.5)*power),life:1});
+    scene.add(m);
+  }
+}
+function stepBursts(dt){
+  for(let i=burst.list.length-1;i>=0;i--){
+    const b=burst.list[i];
+    b.life-=dt*1.4; b.v.y-=dt*2.2;
+    b.m.position.addScaledVector(b.v,dt);
+    b.m.material.opacity=Math.max(b.life,0)*.9;
+    if(b.life<=0){scene.remove(b.m);b.m.material.dispose();burst.list.splice(i,1);}
+  }
+}
+
+/* ============================ gesture engine ============================ */
+/* Fingers extended via tip-vs-pip in hand frame. lm = 21 normalized landmarks. */
+const GESTURE_HELP=[
+  ['🤏','Pinch + Drag','grab & move object'],
+  ['🖐','Open Palm','scale up (spread)'],
+  ['✊','Fist','squash / compress'],
+  ['☝','Point + Move','spin object'],
+  ['✌','Peace','morph geometry'],
+  ['👍','Thumbs Up','confirm / flash FX'],
+];
+$('helpRows').innerHTML=GESTURE_HELP.map((g,i)=>
+  `<div class="gRow" id="hrow${i}"><div class="ic">${g[0]}</div><div class="nm">${g[1]}</div><div class="ds">${g[2]}</div></div>`).join('');
+
+let camReady=false,lastHands=0;
+const gestState={
+  name:'—',conf:0,since:0,holdMs:0,
+  grab:false,grabDX:0,grabDY:0,
+  peaceFired:false,thumbFired:false,
+};
+const SMO={x:.5,y:.5,pinch:0,open:1};
+let latestLM=null,latestDt=16;
+
+function fingersExtended(lm){
+  const tip=[4,8,12,16,20],pip=[3,6,10,14,18];
+  const vx=lm[9].x-lm[0].x,vy=lm[9].y-lm[0].y;
+  const len=Math.hypot(vx,vy)||1e-6;
+  const nx=vx/len,ny=vy/len; // project tip-vs-pip onto the wrist→knuckle axis
+  const out=[];
+  for(let i=0;i<5;i++){
+    const dx=lm[tip[i]].x-lm[pip[i]].x,dy=lm[tip[i]].y-lm[pip[i]].y;
+    out.push((dx*nx+dy*ny)>0.02);
+  }
+  return out;
+}
+function classify(lm){
+  const ext=fingersExtended(lm);
+  const nExt=ext.filter(Boolean).length;
+  const span=Math.hypot(lm[0].x-lm[9].x,lm[0].y-lm[9].y)||1e-6;
+  const pinchN=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y)/span;
+  SMO.pinch=pinchN;
+  SMO.open=clamp((pinchN-.15)/(1.15-.15),0,1);
+  if(pinchN<.5&&ext[2]&&ext[3]&&ext[4])return{g:'pinch',c:.9};
+  if(nExt>=4)return{g:'palm',c:.85};
+  if(nExt===0)return{g:'fist',c:.9};
+  if(ext[1]&&!ext[2]&&!ext[3]&&!ext[4]&&!ext[0])return{g:'point',c:.8};
+  if(ext[1]&&ext[2]&&!ext[3]&&!ext[4])return{g:'peace',c:.85};
+  if(ext[0]&&!ext[1]&&!ext[2]&&!ext[3])return{g:'thumbsup',c:.7};
+  return{g:'unknown',c:.4};
+}
+function applyGesture(g,lm,dtMs){
+  const now=performance.now();
+  const palm={x:(lm[0].x+lm[5].x+lm[17].x)/3,y:(lm[0].y+lm[5].y+lm[17].y)/3};
+  SMO.x=dampF(SMO.x,palm.x,18,dtMs/1000);
+  SMO.y=dampF(SMO.y,palm.y,18,dtMs/1000);
+
+  if(g!==gestState.name){
+    gestState.name=g;gestState.since=now;
+    gestState.peaceFired=false;gestState.thumbFired=false;
+    if(g==='pinch')SFX.grab();
+  }
+  gestState.conf=classifyCache.c;gestState.holdMs=now-gestState.since;
+
+  // HUD
+  const labels={pinch:'🤏 PINCH',palm:'🖐 OPEN PALM',fist:'✊ FIST',point:'☝ POINT',
+    peace:'✌ PEACE',thumbsup:'👍 THUMBS UP',unknown:'·· ··'};
+  $('bigGesture').textContent=labels[g]||g;
+  $('gestureMeta').textContent=
+    g==='pinch'?'grab mode — move hand to drag':
+    g==='palm'?'scale mode — spread / close hand':
+    g==='fist'?'compress — hold to squash':
+    g==='point'?'spin mode — sweep to rotate':
+    g==='peace'?'geometry morph armed…':
+    g==='thumbsup'?'confirmed ✦ flash':
+    'tracking…';
+  $('confidenceFill').style.width=(gestState.conf*100)+'%';
+
+  // highlight cheat row
+  const rowMap={pinch:0,palm:1,fist:2,point:3,peace:4,thumbsup:5};
+  const ri=rowMap[g];
+  document.querySelectorAll('.gRow').forEach((r,i)=>r.classList.toggle('active',i===ri));
+
+  // actions — video is mirrored (scaleX(-1)), so screen-x = 1 - raw-x
+  switch(g){
+    case 'pinch':{
+      if(!gestState.grab){gestState.grab=true;state.grabbed=true;
+        gestState.grabDX=state.targetPos.x-screenX(SMO.x);
+        gestState.grabDY=state.targetPos.y-screenY(SMO.y);
+        ring.material.color.set(0x4df0ff);
+      }
+      state.targetPos.x=clamp(screenX(SMO.x)+gestState.grabDX,-5,5);
+      state.targetPos.y=clamp(screenY(SMO.y)+gestState.grabDY,-.1,4.6);
+      break;
+    }
+    case 'palm':{
+      state.targetScale=clamp(.45+SMO.open*1.15,.45,1.6);
+      break;
+    }
+    case 'fist':{
+      state.squash=dampF(state.squash,.42,8,dtMs/1000);
+      break;
+    }
+    case 'point':{
+      const dx=lm[8].x-lm[5].x,dy=lm[8].y-lm[5].y;
+      state.rotY=(state.rotY||0)+dx*5;state.rotX+=dy*3;
+      break;
+    }
+    case 'peace':{
+      if(!gestState.peaceFired&&gestState.holdMs>350){
+        gestState.peaceFired=true;cycleShape();SFX.morph();
+        spawnBurst(state.pos,34,1.2);
+      }
+      break;
+    }
+    case 'thumbsup':{
+      if(!gestState.thumbFired&&gestState.holdMs>500){
+        gestState.thumbFired=true;flashFX();
+      }
+      break;
+    }
+    case 'unknown':default:
+      break;
+  }
+  if(g!=='pinch'&&gestState.grab){
+    gestState.grab=false;state.grabbed=false;SFX.drop();ring.material.color.set(0x00e0ff);
+  }
+  if(g!=='fist')state.squash=dampF(state.squash,1,5,dtMs/1000);
+}
+const screenX=rx=>clamp((1-rx)*9-4.5,-5,5);   // mirrored camera → world
+const screenY=ry=>clamp((1-ry)*5.5+.2,-.1,4.8);
+let classifyCache={g:'unknown',c:.4};
+
+function onResults(res){
+  camReady=true;
+  const lms=res.multiHandLandmarks||[];
+  lastHands=lms.length;
+  $('handCount').textContent=lms.length+' HANDS';
+  drawHands(lms);
+  if(lms.length){
+    const lm=lms[0];
+    latestLM=lm;
+    classifyCache=classify(lm);
+    applyGesture(classifyCache.g,lm,16);
+    $('tTrack').style.width='100%';
+  }else{
+    onNoHands();
+  }
+}
+function onNoHands(){
+  gestState.grab=false;state.grabbed=false;
+  state.squash=dampF(state.squash,1,5,.016);
+  $('bigGesture').textContent='—';
+  $('gestureMeta').textContent='show a hand to the camera';
+  $('confidenceFill').style.width='0%';
+  $('tTrack').style.width='0%';
+  document.querySelectorAll('.gRow').forEach(r=>r.classList.remove('active'));
+}
+
+/* ============================ skeleton overlay ============================ */
+const hc=$('handCanvas'),hctx=hc.getContext('2d');
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function drawHands(lms){
+  const w=hc.width,h=hc.height;
+  hctx.clearRect(0,0,w,h);
+  if(!lms||!lms.length)return;
+  for(const lm of lms){
+    hctx.strokeStyle='rgba(0,200,255,.9)';hctx.lineWidth=2;
+    hctx.shadowColor='rgba(0,200,255,.9)';hctx.shadowBlur=6;
+    const mx=p=>(1-p.x)*w; // mirror to match the CSS-flipped video
+    for(const[a,b]of CONN){
+      hctx.beginPath();
+      hctx.moveTo(mx(lm[a]),lm[a].y*h);
+      hctx.lineTo(mx(lm[b]),lm[b].y*h);
+      hctx.stroke();
+    }
+    hctx.shadowBlur=0;
+    hctx.fillStyle='#4df0ff';
+    for(const p of lm){hctx.beginPath();hctx.arc(mx(p),p.y*h,2.6,0,Math.PI*2);hctx.fill();}
+    hctx.fillStyle='rgba(77,240,255,.25)';
+    for(const i of[4,8,12,16,20]){hctx.beginPath();hctx.arc(mx(lm[i]),lm[i].y*h,4.5,0,Math.PI*2);hctx.fill();}
+  }
+}
+function sizeHandCanvas(){hc.width=hc.clientWidth||264;hc.height=hc.clientHeight||198;}
+addEventListener('resize',sizeHandCanvas);sizeHandCanvas();
+
+/* ============================ MediaPipe wiring ============================ */
+function loadScript(src){return new Promise((res,rej)=>{
+  const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;
+  document.head.appendChild(s);});}
+
+async function startCamera(){
+  try{
+    if($('boot')&&!$('boot').classList.contains('hidden'))$('boot').classList.add('hidden');
+    $('loadingStage').textContent='REQUESTING CAMERA…';
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}});
+    const video=$('video');
+    video.srcObject=stream;await video.play();
+
+    $('loadingStage').textContent='LOADING NEURAL NET…';
+    await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029011/camera_utils.js');
+
+    const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`});
+    hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.6,minTrackingConfidence:.55});
+    hands.onResults(onResults);
+
+    const runner=new Camera(video,{onFrame:async()=>{await hands.send({image:video});},width:640,height:480});
+    await runner.start();
+
+    $('camState').textContent='SCANNING ● LIVE';$('camState').classList.remove('err');
+    toast('Hand scanner online — show your ✋');SFX.ui();
+  }catch(err){
+    console.error(err);
+    $('camState').textContent='CAMERA BLOCKED';$('camState').classList.add('err');
+    $('loadingStage').textContent='';
+    toast('Camera unavailable — use Demo Mode',true);SFX.err();
+  }
+}
+
+/* ============================ synthetic hand (demo) ============================ */
+function synthHand(t,phase){
+  const P=[];const add=(x,y,z)=>P.push({x,y,z});
+  add(.5,.5,0);                                                        // 0 wrist
+  add(.42,.42,0);add(.36,.34,0);add(.31,.28,0);add(.27,.22,0);         // thumb
+  add(.44,.30,0);add(.43,.18,.01);add(.43,.09,.015);add(.44,.02,.02);  // index
+  add(.50,.28,0);add(.50,.15,.01);add(.50,.05,.015);add(.50,-.01,.02); // middle
+  add(.56,.30,0);add(.565,.19,.01);add(.57,.11,.015);add(.575,.05,.02);// ring
+  add(.62,.33,0);add(.63,.23,.01);add(.64,.16,.015);add(.65,.10,.02);  // pinky
+  if(phase==='fist'){
+    for(let f=0;f<4;f++){                     // curl: tip strictly below pip
+      const pip=6+f*4,tip=pip+2;
+      P[pip]={x:P[pip].x,y:.42,z:0};
+      P[tip]={x:P[pip].x+.01,y:.45,z:.01};
+    }
+    P[4]={x:.30,y:.30,z:0};
+  }else if(phase==='pinch'){
+    P[8]={x:P[4].x+.012,y:P[4].y+.012,z:0};                      // index tip meets thumb tip
+    P[12]={x:.50,y:.06,z:.02};P[16]={x:.565,y:.10,z:.02};P[20]={x:.62,y:.13,z:.02};
+  }else if(phase==='point'){
+    P[4]={x:.33,y:.34,z:0};                                      // thumb tucked
+    P[12]={x:.50,y:.40,z:.02};P[16]={x:.545,y:.42,z:.02};P[20]={x:.585,y:.43,z:.02};
+  }else if(phase==='peace'){
+    P[4]={x:.33,y:.34,z:0};
+    P[8]={x:.42,y:.04,z:.02};P[12]={x:.52,y:.06,z:.02};          // index+middle in V
+    P[16]={x:.53,y:.42,z:.02};P[20]={x:.585,y:.43,z:.02};
+  }else if(phase==='thumbsup'){
+    for(let i=6;i<=20;i++)P[i]={x:P[i].x,y:.44+Math.sin(i)*.01,z:.01};
+    P[4]={x:.36,y:.24,z:0};                                      // thumb up
+  }
+  const dx=Math.sin(t*.7)*.06,dy=Math.cos(t*.5)*.05;
+  return P.map(p=>({x:p.x+dx,y:p.y+dy,z:p.z}));
+}
+
+let demoMode=false,demoT=0,demoPhase='palm';
+function demoStep(dt){
+  if(!demoMode)return;
+  demoT+=dt;
+  const phase=(demoT%14);
+  let next='palm';
+  if(phase<2.5)next='pinch';
+  else if(phase<5)next='palm';
+  else if(phase<7)next='fist';
+  else if(phase<9)next='point';
+  else if(phase<11)next='peace';
+  else if(phase<13)next='thumbsup';
+  else next='palm';
+  if(next!==demoPhase){demoPhase=next;
+    $('gestureMeta').textContent='demo — simulated '+next;}
+  const lm=synthHand(demoT,demoPhase);
+  classifyCache=classify(lm);
+  applyGesture(classifyCache.g,lm,16);
+  $('tTrack').style.width='100%';
+  drawHands([lm]);
+  $('handCount').textContent='1 HAND · SIM';
+}
+
+/* ============================ object actions / UI ============================ */
+function cycleShape(silent=false){
+  state.geoIndex=(state.geoIndex+1)%GEOMETRIES.length;
+  rebuildAll();
+  if(!silent){toast('Morphed → '+GEOMETRIES[state.geoIndex][0]);SFX.morph();}
+}
+function shiftColor(){
+  state.hue=(state.hue+.13)%1;
+  mat.color.setHSL(state.hue,.95,.6);
+  mat.emissive.setHSL(state.hue,.9,.25);
+  toast('Color shifted → H '+(state.hue*360|0)+'°');SFX.ui();
+}
+function toggleSpin(){
+  state.spin=!state.spin;
+  $('btnSpin').textContent=state.spin?'ON':'OFF';
+  toast('Auto-spin '+(state.spin?'on':'off'));SFX.ui();
+}
+function toggleWire(){
+  state.wire=!state.wire;mat.wireframe=state.wire;
+  $('btnWire').textContent=state.wire?'ON':'OFF';
+  toast('Wireframe '+(state.wire?'on':'off'));SFX.ui();
+}
+function screenshot(){
+  renderer.render(scene,camera);
+  const a=document.createElement('a');
+  a.download='neon-hands-'+Date.now()+'.png';
+  a.href=renderer.domElement.toDataURL('image/png');
+  a.click();toast('Screenshot saved');SFX.ui();
+}
+function flashFX(){
+  mat.emissiveIntensity=2.6;
+  ring.scale.set(1.6,1.6,1.6);
+  bloom.strength=2.2;
+  spawnBurst(state.pos,40,1.4);
+  toast('✦ Confirmed');SFX.flash();
+  setTimeout(()=>{mat.emissiveIntensity=.9;bloom.strength=.9;},240);
+}
+
+$('btnShape').onclick=cycleShape;
+$('btnColor').onclick=shiftColor;
+$('btnSpin').onclick=toggleSpin;
+$('btnWire').onclick=toggleWire;
+$('btnShot').onclick=screenshot;
+$('btnStartCam').onclick=startCamera;
+$('btnDemo').onclick=()=>{$('boot').classList.add('hidden');demoMode=true;
+  toast('Demo mode — simulated hand cycling all gestures');};
+
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();cycleShape();}
+  if(e.key==='c')shiftColor();
+  if(e.key==='w')toggleWire();
+  if(e.key==='s')screenshot();
+});
+
+/* ============================ render loop ============================ */
+let last=performance.now(),fpsAcc=0,fpsN=0,fpsT=0;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(),dt=Math.min((now-last)/1000,.05);last=now;
+
+  fpsAcc+=1/Math.max(dt,1e-4);fpsN++;fpsT+=dt;
+  if(fpsT>=.5){$('fps').textContent=(fpsAcc/fpsN|0)+' FPS';fpsAcc=0;fpsN=0;fpsT=0;}
+
+  demoStep(dt);
+
+  // smooth motion
+  state.pos.lerp(state.targetPos,1-Math.exp(-8*dt));
+  state.scale=dampF(state.scale,state.targetScale,8,dt);
+
+  const s=state.scale;
+  const sy=s*state.squash;                            // fist squashes Y
+  const sxz=s*(1+(1-state.squash)*.35);               // and bulges XZ
+  mesh.scale.set(sxz,sy,sxz);
+  mesh.rotation.y+=(state.spin?dt*.4:0)+(state.rotY||0);state.rotY=0;
+  mesh.rotation.x=dampF(mesh.rotation.x,state.rotX,6,dt);
+  mesh.rotation.z=dampF(mesh.rotation.z,state.rotZ,6,dt);
+
+  mesh.position.copy(state.pos);
+  cage.position.copy(state.pos);
+  cage.rotation.copy(mesh.rotation);
+  cage.scale.set(mesh.scale.x*1.2,mesh.scale.y*1.15,mesh.scale.z*1.2);
+  cageMat.opacity=.10+.07*Math.sin(now*.004);
+
+  ring.position.x=state.pos.x;ring.position.z=state.pos.z;
+  const rs=state.scale*(1+.05*Math.sin(now*.005));
+  ring.scale.set(rs,rs,rs);
+  ring.material.opacity=state.grabbed?.85:.45;
+
+  glowDisc.position.x=state.pos.x;
+  platform.rotation.y+=dt*.03;
+
+  // beam when grabbed (cylinder is height 4, centered — so sit it at y≈2)
+  beam.position.set(state.pos.x,2.02,state.pos.z);
+  beam.material.opacity=dampF(beam.material.opacity,state.grabbed?.35:0,6,dt);
+
+  // telemetry
+  $('tPinch').style.width=(clamp(1-SMO.pinch/1.1,0,1)*100)+'%';
+  $('tOpen').style.width=(SMO.open*100)+'%';
+
+  // drones orbit
+  for(const d of drones){
+    d.a+=d.spd*dt;
+    d.g.position.set(Math.cos(d.a)*d.r, d.h+Math.sin(now*.001*d.spd*10+d.ph)*.25, Math.sin(d.a)*d.r);
+    d.g.rotation.y+=dt;d.halo.lookAt(camera.position);
+  }
+
+  stars.rotation.y+=dt*.005;dust.rotation.y-=dt*.02;
+
+  controls.update();
+  composer.render();
+}
+animate();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  composer.setSize(innerWidth,innerHeight);
+});
+
+/* debug/test handle */
+window.__NEON={scene,camera,renderer,mesh,cage,state,get gestState(){return gestState;},
+  cycleShape,shiftColor,toggleWire,flashFX,classify,synthHand,spawnBurst,get classifyCache(){return classifyCache;}};
+</script>
+</body>
+</html>

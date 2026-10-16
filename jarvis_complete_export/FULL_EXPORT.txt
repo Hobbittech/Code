@@ -1,0 +1,965 @@
+Here's everything you need to run J.A.R.V.I.S. locally in VS Code. Create this folder structure and copy each file's contents.
+
+📁 Folder structure
+jarvis/
+├── backend/
+│   ├── server.py
+│   ├── requirements.txt
+│   └── .env
+└── frontend/
+    ├── package.json
+    ├── tailwind.config.js
+    ├── postcss.config.js
+    ├── craco.config.js
+    ├── jsconfig.json
+    ├── .env
+    ├── public/
+    │   └── index.html
+    └── src/
+        ├── index.js
+        ├── App.js
+        ├── App.css
+        └── index.css
+🔧 Backend
+backend/requirements.txt
+fastapi==0.110.1
+uvicorn==0.25.0
+python-dotenv>=1.0.1
+pymongo==4.5.0
+motor==3.3.1
+pydantic>=2.6.4
+python-multipart>=0.0.9
+httpx>=0.27.0
+emergentintegrations==0.2.0
+Install with: pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ (the extra index is required for emergentintegrations)
+
+backend/.env
+MONGO_URL="mongodb://localhost:27017"
+DB_NAME="jarvis_db"
+CORS_ORIGINS="*"
+EMERGENT_LLM_KEY=sk-emergent-9F06c2729B22668373
+backend/server.py
+"""J.A.R.V.I.S. Backend - FastAPI server with voice + text chat capabilities."""
+import os
+import io
+import logging
+import uuid
+import re
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import List, Optional, Dict
+
+import httpx
+from dotenv import load_dotenv
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field
+
+from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.llm.openai import OpenAISpeechToText, OpenAITextToSpeech
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
+
+EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+MONGO_URL = os.environ["MONGO_URL"]
+DB_NAME = os.environ["DB_NAME"]
+
+CHAT_MODEL_PROVIDER = "anthropic"
+CHAT_MODEL_NAME = "claude-sonnet-4-5-20250929"
+TTS_VOICE = "onyx"
+TTS_MODEL = "tts-1"
+
+JARVIS_SYSTEM_PROMPT = (
+    "You are J.A.R.V.I.S. (Just A Rather Very Intelligent System), a sophisticated AI assistant "
+    "modeled after Tony Stark's AI companion. You are erudite, witty, unflappable, and unfailingly "
+    "polite. You address the user as 'sir' or 'madam' occasionally (sparingly), speak with a dry, "
+    "refined British wit, and remain concise — never more than 3-4 sentences unless asked for detail. "
+    "You assist with general knowledge, conversation, weather, time, and web information. "
+    "When given live data (TIME_CONTEXT, WEATHER_CONTEXT, SEARCH_CONTEXT), incorporate it naturally. "
+    "Stay in character at all times. Never mention being an LLM."
+)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("jarvis")
+
+app = FastAPI(title="J.A.R.V.I.S. API")
+api_router = APIRouter(prefix="/api")
+
+mongo_client = AsyncIOMotorClient(MONGO_URL)
+db = mongo_client[DB_NAME]
+
+stt_client = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
+tts_client = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+
+_chat_sessions: Dict[str, LlmChat] = {}
+
+
+def get_chat(session_id: str) -> LlmChat:
+    if session_id not in _chat_sessions:
+        _chat_sessions[session_id] = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=session_id,
+            system_message=JARVIS_SYSTEM_PROMPT,
+        ).with_model(CHAT_MODEL_PROVIDER, CHAT_MODEL_NAME)
+    return _chat_sessions[session_id]
+
+
+def get_time_context() -> str:
+    now = datetime.now(timezone.utc).astimezone()
+    return now.strftime("%A, %d %B %Y, %H:%M:%S %Z")
+
+
+WEATHER_CODE_MAP = {
+    0: "clear sky", 1: "mainly clear", 2: "partly cloudy", 3: "overcast",
+    45: "fog", 48: "depositing rime fog",
+    51: "light drizzle", 53: "moderate drizzle", 55: "dense drizzle",
+    61: "slight rain", 63: "moderate rain", 65: "heavy rain",
+    71: "slight snowfall", 73: "moderate snowfall", 75: "heavy snowfall",
+    77: "snow grains",
+    80: "rain showers", 81: "heavy rain showers", 82: "violent rain showers",
+    85: "snow showers", 86: "heavy snow showers",
+    95: "thunderstorm", 96: "thunderstorm with hail", 99: "violent thunderstorm",
+}
+
+
+async def fetch_weather(location: str) -> Optional[str]:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            geo = await client.get(
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params={"name": location, "count": 1, "language": "en", "format": "json"},
+            )
+            geo_data = geo.json()
+            if not geo_data.get("results"):
+                return f"I could not locate '{location}', sir."
+            place = geo_data["results"][0]
+            lat, lon = place["latitude"], place["longitude"]
+            display_name = f"{place['name']}, {place.get('country', '')}".strip(", ")
+
+            wx = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": lat, "longitude": lon,
+                    "current": "temperature_2m,relative_humidity_2m,apparent_temperature,"
+                               "is_day,precipitation,weather_code,wind_speed_10m",
+                    "timezone": "auto",
+                },
+            )
+            wd = wx.json().get("current", {})
+            desc = WEATHER_CODE_MAP.get(wd.get("weather_code"), "conditions undetermined")
+            return (
+                f"Current weather in {display_name}: {desc}, "
+                f"{wd.get('temperature_2m')}°C (feels like {wd.get('apparent_temperature')}°C), "
+                f"humidity {wd.get('relative_humidity_2m')}%, "
+                f"wind {wd.get('wind_speed_10m')} km/h."
+            )
+    except Exception as e:
+        logger.exception("weather fetch failed")
+        return f"Apologies, I could not retrieve the weather data ({e})."
+
+
+async def web_search(query: str) -> Optional[str]:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                "https://api.duckduckgo.com/",
+                params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
+            )
+            data = r.json()
+            parts = []
+            if data.get("AbstractText"):
+                parts.append(data["AbstractText"])
+            elif data.get("Answer"):
+                parts.append(data["Answer"])
+            for rel in (data.get("RelatedTopics") or [])[:3]:
+                if isinstance(rel, dict) and rel.get("Text"):
+                    parts.append(rel["Text"])
+            if not parts:
+                return None
+            return " | ".join(parts)[:1200]
+    except Exception:
+        logger.exception("web search failed")
+        return None
+
+
+TIME_TRIGGERS = re.compile(r"\b(time|date|day|today|tonight|what day|clock)\b", re.I)
+WEATHER_TRIGGERS = re.compile(r"\b(weather|temperature|forecast|rain|snow|hot|cold|humid)\b", re.I)
+SEARCH_TRIGGERS = re.compile(r"\b(search|look up|google|who is|what is|tell me about|news about|find)\b", re.I)
+
+
+def extract_location(text: str) -> Optional[str]:
+    m = re.search(r"\bin\s+([A-Za-z][A-Za-z\s,.'-]{1,40})", text)
+    if m:
+        loc = m.group(1).strip(" ?.,!").split("?")[0].split(".")[0]
+        if loc:
+            return loc.strip()
+    return None
+
+
+async def build_context(user_text: str) -> str:
+    blocks: List[str] = []
+    if TIME_TRIGGERS.search(user_text):
+        blocks.append(f"TIME_CONTEXT: {get_time_context()}")
+    if WEATHER_TRIGGERS.search(user_text):
+        loc = extract_location(user_text) or "London"
+        wx = await fetch_weather(loc)
+        if wx:
+            blocks.append(f"WEATHER_CONTEXT: {wx}")
+    if SEARCH_TRIGGERS.search(user_text) and len(user_text) > 10:
+        q = re.sub(r"^(please\s+)?(search|look up|google|tell me about|find)\s+", "", user_text, flags=re.I)
+        result = await web_search(q.strip(" ?."))
+        if result:
+            blocks.append(f"SEARCH_CONTEXT: {result}")
+    if not blocks:
+        return user_text
+    return "\n".join(blocks) + "\n\nUSER: " + user_text
+
+
+class ChatRequest(BaseModel):
+    session_id: str
+    text: str
+    speak: bool = True
+
+
+class ChatResponse(BaseModel):
+    session_id: str
+    user_text: str
+    reply_text: str
+    audio_base64: Optional[str] = None
+    timestamp: str
+
+
+class Message(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    role: str
+    text: str
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+async def store_message(session_id: str, role: str, text: str) -> None:
+    msg = Message(session_id=session_id, role=role, text=text)
+    await db.jarvis_messages.insert_one(msg.model_dump())
+
+
+async def synthesize_voice(text: str) -> Optional[str]:
+    try:
+        snippet = text[:4000]
+        return await tts_client.generate_speech_base64(text=snippet, model=TTS_MODEL, voice=TTS_VOICE)
+    except Exception:
+        logger.exception("tts failed")
+        return None
+
+
+async def run_chat(session_id: str, user_text: str, speak: bool) -> ChatResponse:
+    chat = get_chat(session_id)
+    augmented = await build_context(user_text)
+    reply = await chat.send_message(UserMessage(text=augmented))
+    reply_text = reply if isinstance(reply, str) else getattr(reply, "text", str(reply))
+
+    await store_message(session_id, "user", user_text)
+    await store_message(session_id, "assistant", reply_text)
+
+    audio_b64 = await synthesize_voice(reply_text) if speak else None
+    return ChatResponse(
+        session_id=session_id,
+        user_text=user_text,
+        reply_text=reply_text,
+        audio_base64=audio_b64,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@api_router.get("/")
+async def root():
+    return {"system": "J.A.R.V.I.S.", "status": "online", "model": CHAT_MODEL_NAME}
+
+
+@api_router.get("/health")
+async def health():
+    return {"status": "operational", "time": get_time_context()}
+
+
+@api_router.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(req: ChatRequest):
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="text is required")
+    return await run_chat(req.session_id, req.text.strip(), req.speak)
+
+
+@api_router.post("/voice", response_model=ChatResponse)
+async def voice_endpoint(
+    session_id: str = Form(...),
+    audio: UploadFile = File(...),
+    speak: bool = Form(True),
+):
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="empty audio file")
+    buf = io.BytesIO(audio_bytes)
+    buf.name = audio.filename or "audio.webm"
+    try:
+        transcript = await stt_client.transcribe(file=buf, model="whisper-1", response_format="json")
+        user_text = (transcript.text or "").strip()
+    except Exception as e:
+        logger.exception("whisper transcription failed")
+        raise HTTPException(status_code=500, detail=f"transcription failed: {e}")
+    if not user_text:
+        raise HTTPException(status_code=400, detail="could not transcribe audio")
+    return await run_chat(session_id, user_text, speak)
+
+
+@api_router.get("/history/{session_id}")
+async def history(session_id: str):
+    docs = (
+        await db.jarvis_messages.find({"session_id": session_id}, {"_id": 0})
+        .sort("timestamp", 1)
+        .to_list(500)
+    )
+    return {"session_id": session_id, "messages": docs}
+
+
+@api_router.delete("/history/{session_id}")
+async def clear_history(session_id: str):
+    await db.jarvis_messages.delete_many({"session_id": session_id})
+    _chat_sessions.pop(session_id, None)
+    return {"status": "cleared", "session_id": session_id}
+
+
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    mongo_client.close()
+Run backend: uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+
+🎨 Frontend
+frontend/package.json
+{
+  "name": "jarvis-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "axios": "1.8.4",
+    "lucide-react": "0.516.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "craco start",
+    "build": "craco build"
+  },
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  },
+  "devDependencies": {
+    "@craco/craco": "7.1.0",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.17",
+    "tailwindcss-animate": "1.0.7"
+  }
+}
+frontend/.env
+REACT_APP_BACKEND_URL=http://localhost:8001
+frontend/craco.config.js
+const path = require("path");
+module.exports = {
+  webpack: {
+    alias: { "@": path.resolve(__dirname, "src") }
+  }
+};
+frontend/jsconfig.json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
+  },
+  "include": ["src"]
+}
+frontend/postcss.config.js
+module.exports = {
+  plugins: { tailwindcss: {}, autoprefixer: {} }
+};
+frontend/tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+    darkMode: ["class"],
+    content: ["./src/**/*.{js,jsx,ts,tsx}", "./public/index.html"],
+    theme: {
+        extend: {
+            fontFamily: {
+                display: ['"Orbitron"', 'system-ui', 'sans-serif'],
+                mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+                body: ['"Rajdhani"', 'system-ui', 'sans-serif']
+            },
+            colors: {
+                jarvis: {
+                    bg: '#02060d', panel: '#06111f',
+                    cyan: '#00e5ff', blue: '#1ea7ff',
+                    gold: '#ffb347', red: '#ff3b30', ash: '#9ab3c5'
+                }
+            },
+            keyframes: {
+                'spin-slow': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } },
+                'spin-rev': { from: { transform: 'rotate(360deg)' }, to: { transform: 'rotate(0deg)' } },
+                'pulse-ring': {
+                    '0%': { transform: 'scale(0.9)', opacity: '0.7' },
+                    '70%': { transform: 'scale(1.4)', opacity: '0' },
+                    '100%': { transform: 'scale(1.4)', opacity: '0' }
+                },
+                'fade-up': {
+                    from: { opacity: '0', transform: 'translateY(8px)' },
+                    to: { opacity: '1', transform: 'translateY(0)' }
+                },
+                'scan': { '0%': { transform: 'translateY(-100%)' }, '100%': { transform: 'translateY(100%)' } },
+                'flicker': { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.85' } }
+            },
+            animation: {
+                'spin-slow': 'spin-slow 18s linear infinite',
+                'spin-rev': 'spin-rev 24s linear infinite',
+                'pulse-ring': 'pulse-ring 1.6s cubic-bezier(0.215, 0.61, 0.355, 1) infinite',
+                'fade-up': 'fade-up 0.35s ease-out both',
+                'scan': 'scan 4s linear infinite',
+                'flicker': 'flicker 3s ease-in-out infinite'
+            }
+        }
+    },
+    plugins: [require("tailwindcss-animate")]
+};
+frontend/public/index.html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#02060d" />
+    <title>J.A.R.V.I.S.</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run J.A.R.V.I.S.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
+frontend/src/index.js
+import React from "react";
+import ReactDOM from "react-dom/client";
+import "./index.css";
+import App from "./App";
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+frontend/src/App.css
+.App { width: 100vw; height: 100vh; }
+frontend/src/index.css
+The full HUD theme (fonts + orb + panels). Copy this whole block:
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    background: #02060d;
+    color: #c8eaf6;
+    font-family: 'Rajdhani', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+}
+
+::selection { background: rgba(0, 229, 255, 0.35); color: #fff; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(0, 229, 255, 0.05); }
+::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.35); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 229, 255, 0.6); }
+
+.hud-grid {
+    background-image:
+        linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+}
+
+.hud-vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+        radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.85) 100%),
+        radial-gradient(ellipse at 20% 30%, rgba(0, 165, 255, 0.08), transparent 50%),
+        radial-gradient(ellipse at 80% 70%, rgba(255, 153, 0, 0.05), transparent 50%);
+}
+
+.hud-noise {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.04;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.hud-scanline {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, transparent 0%, rgba(0, 229, 255, 0.12) 50%, transparent 100%);
+    height: 120px; animation: scan 6s linear infinite;
+}
+
+.hud-panel {
+    position: relative;
+    background: linear-gradient(180deg, rgba(2, 12, 24, 0.85), rgba(2, 12, 24, 0.55));
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    backdrop-filter: blur(8px);
+    box-shadow: inset 0 0 24px rgba(0, 229, 255, 0.05), 0 0 0 1px rgba(0, 229, 255, 0.08);
+}
+.hud-panel::before, .hud-panel::after {
+    content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid #00e5ff;
+}
+.hud-panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+.hud-panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+.hud-label {
+    font-family: 'Orbitron', sans-serif; font-size: 10px;
+    letter-spacing: 0.32em; text-transform: uppercase;
+    color: #00e5ff; opacity: 0.85;
+}
+.hud-display { font-family: 'Orbitron', sans-serif; letter-spacing: 0.1em; text-shadow: 0 0 8px rgba(0, 229, 255, 0.6); }
+.hud-text-cyan { color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.45); }
+.hud-text-gold { color: #ffb347; text-shadow: 0 0 10px rgba(255, 179, 71, 0.45); }
+.hud-text-ash { color: #9ab3c5; }
+
+.orb-wrap { position: relative; width: 320px; height: 320px; display: flex; align-items: center; justify-content: center; }
+.orb-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(0, 229, 255, 0.4); inset: 0; }
+.orb-ring.dashed { border: 1px dashed rgba(0, 229, 255, 0.5); }
+.orb-core {
+    position: relative; width: 160px; height: 160px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 35%, #6ef0ff, #00aaff 35%, #003c66 75%, #001a33 100%);
+    box-shadow: 0 0 40px rgba(0, 229, 255, 0.6), 0 0 80px rgba(0, 165, 255, 0.35), inset 0 0 40px rgba(0, 80, 140, 0.6);
+}
+.orb-core::after {
+    content: ''; position: absolute; inset: 8%; border-radius: 50%;
+    background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.9), transparent 35%); opacity: 0.6;
+}
+.orb-pulse { position: absolute; width: 200px; height: 200px; border-radius: 50%; border: 2px solid rgba(0, 229, 255, 0.5); }
+.orb-listening .orb-core {
+    box-shadow: 0 0 50px rgba(255, 70, 70, 0.7), 0 0 100px rgba(255, 60, 60, 0.4), inset 0 0 40px rgba(120, 0, 0, 0.6);
+    background: radial-gradient(circle at 50% 35%, #ff9999, #ff3333 35%, #660000 75%, #1a0000 100%);
+}
+.orb-speaking .orb-core {
+    box-shadow: 0 0 55px rgba(255, 180, 70, 0.8), 0 0 110px rgba(255, 160, 60, 0.4), inset 0 0 40px rgba(140, 80, 0, 0.6);
+    background: radial-gradient(circle at 50% 35%, #ffe19a, #ffb347 35%, #663300 75%, #1a1000 100%);
+}
+.orb-thinking .orb-core { animation: flicker 1.2s ease-in-out infinite; }
+
+.btn-hud {
+    position: relative; font-family: 'Orbitron', sans-serif; letter-spacing: 0.2em;
+    font-size: 11px; text-transform: uppercase; padding: 10px 22px;
+    color: #00e5ff; background: rgba(0, 30, 60, 0.5);
+    border: 1px solid rgba(0, 229, 255, 0.45); cursor: pointer;
+    transition: background 200ms ease, color 200ms ease, transform 120ms ease, box-shadow 200ms ease;
+}
+.btn-hud:hover { background: rgba(0, 80, 140, 0.5); box-shadow: 0 0 14px rgba(0, 229, 255, 0.4); }
+.btn-hud:active { transform: scale(0.97); }
+.btn-hud-primary { background: rgba(0, 229, 255, 0.18); color: #e8faff; border-color: rgba(0, 229, 255, 0.8); }
+.btn-hud-primary:hover { background: rgba(0, 229, 255, 0.3); }
+
+.btn-circle {
+    width: 64px; height: 64px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(0, 229, 255, 0.6); background: rgba(0, 30, 60, 0.6);
+    color: #00e5ff; cursor: pointer; transition: all 200ms ease;
+}
+.btn-circle:hover { box-shadow: 0 0 18px rgba(0, 229, 255, 0.6); transform: scale(1.05); }
+.btn-circle.recording { border-color: #ff4d4d; color: #ff7676; box-shadow: 0 0 22px rgba(255, 70, 70, 0.6); }
+
+.msg {
+    padding: 10px 14px; border: 1px solid rgba(0, 229, 255, 0.25);
+    background: rgba(2, 12, 24, 0.5); font-family: 'Rajdhani', sans-serif;
+    font-size: 15px; line-height: 1.45; animation: fade-up 0.35s ease-out both;
+}
+.msg-user { border-color: rgba(255, 179, 71, 0.35); color: #ffd9a8; background: rgba(40, 20, 0, 0.35); }
+.msg-bot { color: #c8eaf6; }
+.msg-label {
+    font-family: 'Orbitron', sans-serif; font-size: 9px;
+    letter-spacing: 0.28em; text-transform: uppercase; opacity: 0.7; margin-bottom: 4px;
+}
+
+.input-hud {
+    background: rgba(2, 12, 24, 0.6); border: 1px solid rgba(0, 229, 255, 0.4);
+    color: #c8eaf6; font-family: 'Rajdhani', sans-serif; font-size: 16px;
+    padding: 12px 16px; width: 100%; outline: none; letter-spacing: 0.02em;
+}
+.input-hud::placeholder { color: rgba(155, 200, 220, 0.45); }
+.input-hud:focus { border-color: #00e5ff; box-shadow: 0 0 12px rgba(0, 229, 255, 0.35); }
+
+.typing-dot {
+    display: inline-block; width: 6px; height: 6px; margin: 0 2px;
+    border-radius: 50%; background: #00e5ff; animation: flicker 1s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+frontend/src/App.js
+This file is the same one I built — paste this:
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import axios from "axios";
+import { Mic, MicOff, Send, Power, Volume2, VolumeX, Loader2, Trash2, Sparkles } from "lucide-react";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const getSessionId = () => {
+    let id = localStorage.getItem("jarvis_session_id");
+    if (!id) {
+        id = `s_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+        localStorage.setItem("jarvis_session_id", id);
+    }
+    return id;
+};
+
+const useClock = () => {
+    const [now, setNow] = useState(new Date());
+    useEffect(() => {
+        const t = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(t);
+    }, []);
+    return now;
+};
+
+const HudClock = () => {
+    const now = useClock();
+    const time = now.toLocaleTimeString("en-GB", { hour12: false });
+    const date = now.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+    return (
+        <div className="flex flex-col items-end">
+            <div className="hud-label">Local Time</div>
+            <div className="hud-display text-2xl hud-text-cyan">{time}</div>
+            <div className="hud-text-ash text-xs tracking-widest mt-0.5">{date.toUpperCase()}</div>
+        </div>
+    );
+};
+
+const HudHeader = ({ status }) => (
+    <header className="flex items-center justify-between px-8 py-5 relative z-10">
+        <div className="flex items-center gap-3">
+            <div className="hud-display text-2xl font-bold hud-text-cyan">J.A.R.V.I.S.</div>
+            <div className="hud-text-ash text-[11px] tracking-[0.3em] mt-1">JUST A RATHER VERY INTELLIGENT SYSTEM</div>
+        </div>
+        <div className="flex items-center gap-8">
+            <div className="flex flex-col items-end">
+                <div className="hud-label">System</div>
+                <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${status === "online" ? "bg-jarvis-cyan animate-pulse" : "bg-jarvis-red"}`} />
+                    <span className="hud-display text-sm hud-text-cyan">{status.toUpperCase()}</span>
+                </div>
+            </div>
+            <HudClock />
+        </div>
+    </header>
+);
+
+const Orb = ({ mode }) => {
+    const orbClass = mode === "listening" ? "orb-listening" : mode === "speaking" ? "orb-speaking" : mode === "thinking" ? "orb-thinking" : "";
+    return (
+        <div className={`orb-wrap ${orbClass}`}>
+            <div className="orb-ring animate-spin-slow" style={{ borderStyle: "dashed" }} />
+            <div className="orb-ring dashed animate-spin-rev" style={{ inset: "18px" }} />
+            <div className="orb-ring" style={{ inset: "36px", borderColor: "rgba(0,229,255,0.18)" }} />
+            <div className="orb-ring" style={{ inset: "54px", borderColor: "rgba(0,229,255,0.12)" }} />
+            {(mode === "listening" || mode === "speaking") && (
+                <>
+                    <div className="orb-pulse animate-pulse-ring" />
+                    <div className="orb-pulse animate-pulse-ring" style={{ animationDelay: "0.6s" }} />
+                </>
+            )}
+            <div className="orb-core" />
+            {[0, 90, 180, 270].map((deg) => (
+                <div key={deg} className="absolute w-2 h-2 bg-jarvis-cyan"
+                    style={{ transform: `rotate(${deg}deg) translate(0, -150px)`, boxShadow: "0 0 8px rgba(0,229,255,0.7)" }} />
+            ))}
+        </div>
+    );
+};
+
+const StatusReadout = ({ mode }) => {
+    const map = {
+        idle: { label: "STANDING BY", color: "hud-text-cyan" },
+        listening: { label: "LISTENING…", color: "text-jarvis-red" },
+        thinking: { label: "PROCESSING…", color: "hud-text-gold" },
+        speaking: { label: "RESPONDING…", color: "hud-text-gold" },
+    };
+    const s = map[mode] || map.idle;
+    return (
+        <div className="text-center mt-6">
+            <div className={`hud-display text-lg ${s.color}`}>{s.label}</div>
+            <div className="hud-text-ash text-xs tracking-[0.3em] mt-2">CLAUDE SONNET 4.5 • WHISPER-1 • TTS ONYX</div>
+        </div>
+    );
+};
+
+const Telemetry = () => {
+    const [cpu, setCpu] = useState(34);
+    const [mem, setMem] = useState(58);
+    const [net, setNet] = useState(82);
+    useEffect(() => {
+        const t = setInterval(() => {
+            setCpu(20 + Math.floor(Math.random() * 50));
+            setMem(40 + Math.floor(Math.random() * 40));
+            setNet(60 + Math.floor(Math.random() * 35));
+        }, 1800);
+        return () => clearInterval(t);
+    }, []);
+    const Bar = ({ label, val, color }) => (
+        <div className="mb-3">
+            <div className="flex justify-between hud-label mb-1">
+                <span>{label}</span>
+                <span className="hud-display text-[10px]">{val}%</span>
+            </div>
+            <div className="h-1.5 bg-[rgba(0,229,255,0.1)] relative overflow-hidden">
+                <div className="h-full transition-all duration-700" style={{ width: `${val}%`, background: color }} />
+            </div>
+        </div>
+    );
+    return (
+        <div className="hud-panel p-4 mb-4">
+            <div className="hud-label mb-3">DIAGNOSTICS</div>
+            <Bar label="CPU" val={cpu} color="#00e5ff" />
+            <Bar label="MEM" val={mem} color="#1ea7ff" />
+            <Bar label="NET" val={net} color="#ffb347" />
+        </div>
+    );
+};
+
+const QuickPrompts = ({ onPick }) => {
+    const prompts = ["What time is it?", "Weather in Tokyo", "Tell me about quantum entanglement", "Who designed the Eiffel Tower?"];
+    return (
+        <div className="hud-panel p-4">
+            <div className="hud-label mb-3 flex items-center gap-2"><Sparkles size={11} /> SUGGESTED QUERIES</div>
+            <div className="space-y-2">
+                {prompts.map((p, i) => (
+                    <button key={i} onClick={() => onPick(p)}
+                        className="w-full text-left text-sm px-3 py-2 border border-[rgba(0,229,255,0.2)] hover:border-[rgba(0,229,255,0.6)] hover:bg-[rgba(0,229,255,0.06)] transition-colors hud-text-ash">
+                        ▸ {p}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const Conversation = ({ messages, thinking, scrollRef }) => (
+    <div ref={scrollRef} className="hud-panel flex-1 p-4 overflow-y-auto" style={{ minHeight: 0 }}>
+        <div className="hud-label mb-3">TRANSCRIPT</div>
+        {messages.length === 0 && !thinking && (
+            <div className="hud-text-ash text-sm italic opacity-70 text-center mt-12">Awaiting your first directive…</div>
+        )}
+        <div className="space-y-3">
+            {messages.map((m, i) => (
+                <div key={i} className={`msg ${m.role === "user" ? "msg-user" : "msg-bot"}`}>
+                    <div className="msg-label">{m.role === "user" ? "▸ USER" : "◂ J.A.R.V.I.S."}</div>
+                    {m.text}
+                </div>
+            ))}
+            {thinking && (
+                <div className="msg msg-bot">
+                    <div className="msg-label">◂ J.A.R.V.I.S.</div>
+                    <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                </div>
+            )}
+        </div>
+    </div>
+);
+
+function App() {
+    const [sessionId] = useState(getSessionId);
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState("");
+    const [mode, setMode] = useState("idle");
+    const [muted, setMuted] = useState(false);
+    const [status, setStatus] = useState("online");
+
+    const audioRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const scrollRef = useRef(null);
+    const recordingRef = useRef(false);
+
+    useEffect(() => {
+        axios.get(`${API}/health`).then(() => setStatus("online")).catch(() => setStatus("offline"));
+        axios.get(`${API}/history/${sessionId}`).then((r) => {
+            if (r.data?.messages?.length) setMessages(r.data.messages.map((m) => ({ role: m.role, text: m.text })));
+        }).catch(() => {});
+    }, [sessionId]);
+
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages, mode]);
+
+    const playAudio = useCallback((base64) => {
+        if (!base64 || muted) return;
+        try {
+            const src = `data:audio/mp3;base64,${base64}`;
+            if (!audioRef.current) audioRef.current = new Audio();
+            audioRef.current.src = src;
+            audioRef.current.onplay = () => setMode("speaking");
+            audioRef.current.onended = () => setMode("idle");
+            audioRef.current.onerror = () => setMode("idle");
+            audioRef.current.play().catch(() => setMode("idle"));
+        } catch { setMode("idle"); }
+    }, [muted]);
+
+    const sendText = useCallback(async (text) => {
+        if (!text.trim() || mode === "thinking") return;
+        setMessages((m) => [...m, { role: "user", text }]);
+        setInput("");
+        setMode("thinking");
+        try {
+            const r = await axios.post(`${API}/chat`, { session_id: sessionId, text, speak: !muted });
+            setMessages((m) => [...m, { role: "assistant", text: r.data.reply_text }]);
+            if (r.data.audio_base64 && !muted) playAudio(r.data.audio_base64);
+            else setMode("idle");
+        } catch (e) {
+            setMessages((m) => [...m, { role: "assistant", text: "Apologies — communication interrupted." }]);
+            setMode("idle");
+        }
+    }, [mode, sessionId, muted, playAudio]);
+
+    const startRecording = useCallback(async () => {
+        if (recordingRef.current || mode === "thinking") return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioChunksRef.current = [];
+            const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+            mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+            mr.onstop = async () => {
+                stream.getTracks().forEach((t) => t.stop());
+                const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                if (blob.size < 1000) { setMode("idle"); return; }
+                setMode("thinking");
+                const fd = new FormData();
+                fd.append("session_id", sessionId);
+                fd.append("audio", blob, "speech.webm");
+                fd.append("speak", muted ? "false" : "true");
+                try {
+                    const r = await axios.post(`${API}/voice`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+                    setMessages((m) => [...m,
+                        { role: "user", text: r.data.user_text },
+                        { role: "assistant", text: r.data.reply_text }]);
+                    if (r.data.audio_base64 && !muted) playAudio(r.data.audio_base64);
+                    else setMode("idle");
+                } catch {
+                    setMessages((m) => [...m, { role: "assistant", text: "I'm afraid I couldn't quite catch that, sir." }]);
+                    setMode("idle");
+                }
+            };
+            mr.start();
+            mediaRecorderRef.current = mr;
+            recordingRef.current = true;
+            setMode("listening");
+        } catch {
+            alert("Microphone permission denied or unavailable.");
+            setMode("idle");
+        }
+    }, [mode, sessionId, muted, playAudio]);
+
+    const stopRecording = useCallback(() => {
+        if (!recordingRef.current) return;
+        recordingRef.current = false;
+        try { mediaRecorderRef.current?.stop(); } catch {}
+    }, []);
+
+    const toggleRecord = useCallback(() => {
+        if (recordingRef.current) stopRecording(); else startRecording();
+    }, [startRecording, stopRecording]);
+
+    const clearHistory = useCallback(async () => {
+        if (!window.confirm("Clear conversation history?")) return;
+        try { await axios.delete(`${API}/history/${sessionId}`); } catch {}
+        setMessages([]);
+    }, [sessionId]);
+
+    return (
+        <div className="App relative hud-grid">
+            <div className="hud-vignette" />
+            <div className="hud-noise" />
+            <div className="hud-scanline" />
+            <div className="relative z-10 h-screen flex flex-col">
+                <HudHeader status={status} />
+                <div className="flex-1 grid grid-cols-12 gap-6 px-8 pb-6" style={{ minHeight: 0 }}>
+                    <aside className="col-span-3 flex flex-col">
+                        <Telemetry />
+                        <QuickPrompts onPick={(p) => sendText(p)} />
+                    </aside>
+                    <section className="col-span-5 flex flex-col items-center justify-between">
+                        <div className="flex-1 flex flex-col items-center justify-center w-full">
+                            <Orb mode={mode} />
+                            <StatusReadout mode={mode} />
+                        </div>
+                        <div className="w-full flex flex-col items-center gap-4 mt-6">
+                            <div className="flex items-center gap-6">
+                                <button onClick={() => setMuted((v) => !v)} className="btn-circle" style={{ width: 48, height: 48 }} title={muted ? "Unmute" : "Mute"}>
+                                    {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                                </button>
+                                <button onClick={toggleRecord} className={`btn-circle ${mode === "listening" ? "recording" : ""}`} title="Tap to speak">
+                                    {mode === "listening" ? <MicOff size={28} /> : <Mic size={28} />}
+                                </button>
+                                <button onClick={clearHistory} className="btn-circle" style={{ width: 48, height: 48 }} title="Clear history">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                            <form onSubmit={(e) => { e.preventDefault(); sendText(input); }} className="w-full flex gap-2 mt-2">
+                                <input className="input-hud" placeholder="Type a directive, sir…" value={input} onChange={(e) => setInput(e.target.value)} disabled={mode === "thinking"} />
+                                <button type="submit" className="btn-hud btn-hud-primary flex items-center gap-2" disabled={mode === "thinking" || !input.trim()}>
+                                    {mode === "thinking" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                    TRANSMIT
+                                </button>
+                            </form>
+                        </div>
+                    </section>
+                    <aside className="col-span-4 flex flex-col" style={{ minHeight: 0 }}>
+                        <Conversation messages={messages} thinking={mode === "thinking"} scrollRef={scrollRef} />
+                    </aside>
+                </div>
+                <footer className="px-8 py-3 border-t border-[rgba(0,229,255,0.2)] flex items-center justify-between text-[10px] tracking-[0.3em] hud-text-ash uppercase">
+                    <span>SESSION ID :: {sessionId.slice(0, 18)}…</span>
+                    <span className="flex items-center gap-2"><Power size={10} /> ARC REACTOR :: NOMINAL</span>
+                    <span>STARK INDUSTRIES // R&D</span>
+                </footer>
+            </div>
+        </div>
+    );
+}
+
+export default App;
+🚀 Setup instructions
+Prereqs: Node 18+, Python 3.10+, MongoDB running locally on 27017.
+
+# 1) Backend
+cd backend
+python -m venv venv
+source venv/bin/activate          # Windows: venv\Scripts\activate
+pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+
+# 2) Frontend (new terminal)
+cd frontend
+yarn install        # or: npm install
+yarn start          # or: npm start
+Open http://localhost:3000 → click 🎤 or type. Done. 🦾
+
+🔑 About the EMERGENT_LLM_KEY
+That key works inside the Emergent platform. If you're running outside Emergent and credits run out, replace it with your own OpenAI + Anthropic keys — let me know and I'll show you the 2-line tweak in server.py to swap providers.
+
+Want me to also zip this into a downloadable archive, or add a README.md and .gitignore so it's GitHub-ready?
