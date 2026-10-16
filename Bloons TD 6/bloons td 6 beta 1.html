@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title> BTD6 Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  /* Theme colours and shared sizing */
+  :root{
+    --bg-deep:#0B140F;
+    --bg-panel:#152119;
+    --bg-panel-2:#1C2C22;
+    --wood:#3B2A1E;
+    --wood-light:#54402C;
+    --gold:#E4B455;
+    --gold-bright:#F5CE7A;
+    --bloon-red:#D6524A;
+    --bloon-blue:#4A90D9;
+    --bloon-green:#5FAE5A;
+    --parchment:#EFE6CE;
+    --text-dim:#9FB0A2;
+    --line:#2A3B2F;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg-deep);color:var(--parchment);font-family:'Inter',sans-serif;}
+  body{
+    background:
+      linear-gradient(rgba(11,20,15,0.55), rgba(11,20,15,0.55)),
+      url("https://cdn.cloudflare.steamstatic.com/steam/apps/960090/ss_95fbb8514c642ee35c9d1be3088a99f77161bb83.1920x1080.jpg?t=1634303522") center / cover fixed;
+    min-height:100vh;
+  }
+  a{color:var(--gold);}
+  h1,h2,h3{font-family:'Baloo 2',sans-serif; margin:0;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* Main report header and navigation */
+  .hero{
+    position:relative;
+    border-radius:16px;
+    padding:36px 28px;
+    background:
+      linear-gradient(160deg, rgba(228,180,85,0.10), transparent 55%),
+      rgba(21,33,25,0.92);
+    border:1px solid var(--line);
+    box-shadow:0 18px 50px rgba(0,0,0,0.35);
+    backdrop-filter:blur(4px);
+    overflow:hidden;
+  }
+  .hero::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image: repeating-linear-gradient(115deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 26px);
+    pointer-events:none;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--gold); opacity:.85; margin-bottom:10px;
+  }
+  .hero h1{
+    font-size:clamp(28px,5vw,42px);
+    color:var(--parchment);
+    line-height:1.05;
+    font-weight:800;
+  }
+  .hero h1 span{color:var(--gold-bright);}
+  .hero p.sub{color:var(--text-dim); margin-top:10px; font-size:15px; max-width:52ch;}
+  .tabs{display:flex; gap:8px; margin-top:26px; flex-wrap:wrap;}
+  .tab-btn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:14px;
+    background:var(--wood); color:var(--parchment);
+    border:1px solid var(--wood-light);
+    padding:9px 16px; border-radius:8px 8px 0 0;
+    cursor:pointer; opacity:.6;
+    transition:opacity .15s, transform .15s;
+  }
+  .tab-btn:hover{opacity:.85;}
+  .tab-btn.active{opacity:1; background:var(--bg-panel-2); border-bottom:2px solid var(--gold);}
+
+  /* Search and leaderboard controls */
+  .panel{
+    background:var(--bg-panel-2);
+    border:1px solid var(--line);
+    border-radius:0 10px 10px 10px;
+    padding:22px;
+    margin-top:0;
+    box-shadow:inset 0 1px rgba(255,255,255,0.03);
+  }
+  .search-row{display:flex; gap:10px; flex-wrap:wrap;}
+  input[type=text]{
+    flex:1; min-width:220px;
+    background:var(--bg-deep); border:1px solid var(--line); color:var(--parchment);
+    padding:12px 14px; border-radius:8px; font-family:'JetBrains Mono',monospace; font-size:14px;
+  }
+  input[type=text]:focus{outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(228,180,85,0.14);}
+  button.primary{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:15px;
+    background:var(--gold); color:#1C1406; border:none;
+    padding:12px 22px; border-radius:8px; cursor:pointer;
+    transition:filter .15s, transform .1s;
+  }
+  button.primary{box-shadow:0 5px 14px rgba(0,0,0,0.22);}
+  button.primary:hover{filter:brightness(1.08); transform:translateY(-1px);}
+  button.primary:active{transform:scale(.98);}
+  button.primary:disabled{opacity:.5; cursor:not-allowed;}
+  .hint{font-size:12.5px; color:var(--text-dim); margin-top:8px; line-height:1.5;}
+  .hint a{color:var(--gold-bright); text-decoration:underline;}
+  .status{margin-top:16px; font-size:14px; font-family:'JetBrains Mono',monospace;}
+  .status.error{color:var(--bloon-red);}
+  .status.loading{color:var(--gold-bright);}
+  .lb-select-row{display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  select{
+    background:var(--bg-deep); color:var(--parchment); border:1px solid var(--line);
+    padding:10px 12px; border-radius:8px; font-family:'Inter'; font-size:14px; flex:1; min-width:200px;
+  }
+  .lb-list{display:flex; flex-direction:column; gap:6px; max-height:420px; overflow-y:auto;}
+  .lb-row{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:8px;
+    padding:10px 14px; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .lb-row:hover{border-color:var(--gold); background:var(--bg-panel-2);}
+  .lb-rank{font-family:'JetBrains Mono'; color:var(--gold); width:34px; flex-shrink:0;}
+  .lb-name{flex:1; font-weight:600; margin:0 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lb-score{font-family:'JetBrains Mono'; color:var(--text-dim); font-size:13px;}
+
+  /* Profile and statistics */
+  .profile-card{margin-top:22px;}
+  .profile-head{
+    display:flex; gap:18px; align-items:center; flex-wrap:wrap;
+    background:linear-gradient(135deg, rgba(228,180,85,0.08), transparent);
+    border:1px solid var(--line); border-radius:12px; padding:20px;
+  }
+  .avatar-frame{
+    width:72px; height:72px; border-radius:10px; border:2px solid var(--gold);
+    background:var(--bg-deep); display:flex; align-items:center; justify-content:center;
+    overflow:hidden; flex-shrink:0;
+  }
+  .avatar-frame img{width:100%; height:100%; object-fit:contain;}
+  .profile-name{font-size:24px; font-weight:800; color:var(--parchment); font-family:'Baloo 2';}
+  .profile-meta{display:flex; gap:16px; flex-wrap:wrap; margin-top:6px; font-size:13px; color:var(--text-dim);}
+  .profile-meta b{color:var(--gold-bright); font-family:'JetBrains Mono';}
+  .rank-ring{
+    margin-left:auto; text-align:center; flex-shrink:0;
+  }
+  .rank-ring .num{font-family:'JetBrains Mono'; font-size:26px; color:var(--gold-bright); font-weight:700;}
+  .rank-ring .lbl{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim);}
+  .stat-groups{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-top:18px;}
+  .stat-group{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:10px; padding:16px;
+    position:relative;
+  }
+  .stat-group::before{
+    content:""; position:absolute; top:8px; right:8px; width:6px; height:6px; border-radius:50%;
+    background:var(--gold); opacity:.5;
+  }
+  .stat-group h3{font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--gold); margin-bottom:12px;}
+  .stat-line{display:flex; justify-content:space-between; font-size:13.5px; padding:5px 0; border-bottom:1px dashed var(--line);}
+  .stat-line:last-child{border-bottom:none;}
+  .stat-line span:first-child{color:var(--text-dim); text-transform:capitalize;}
+  .stat-line span:last-child{font-family:'JetBrains Mono'; color:var(--parchment);}
+  .stat-group .empty{color:var(--text-dim); font-size:13px; font-style:italic;}
+
+  /* Progress chart and footer */
+  .history-section{margin-top:22px;}
+  .history-section h3{font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--gold); margin-bottom:4px;}
+  .history-section .sub{font-size:12.5px; color:var(--text-dim); margin-bottom:14px;}
+  .chart-box{background:var(--bg-panel); border:1px solid var(--line); border-radius:10px; padding:16px; height:260px;}
+  .no-history{color:var(--text-dim); font-size:13px; font-style:italic; padding:14px 0;}
+  footer{margin-top:50px; text-align:center; font-size:12px; color:var(--text-dim);}
+
+  /* Keep the controls comfortable on smaller screens */
+  @media (max-width:600px){
+    .wrap{padding:14px 12px 50px;}
+    .hero{padding:24px 16px;}
+    .panel{padding:16px;}
+    button.primary{width:100%;}
+    input[type=text]{min-width:100%;}
+    .profile-head{padding:16px;}
+    .rank-ring{margin-left:0; width:100%; text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Header, lookup form, and leaderboard browser -->
+  <div class="hero">
+    <div class="eyebrow">Ninja Kiwi Open Data Â· Live Lookup</div>
+    <h1>Bloons TD 6 Stats<span></span></h1>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="oak">Look up by code</button>
+      <button class="tab-btn" data-tab="leaderboard">Browse leaderboards</button>
+    </div>
+    <div class="panel" id="panel-oak">
+      <div class="search-row">
+        <input type="text" id="oakInput" placeholder="Paste an OAK or player ID, e.g. OAK... or an encrypted ID">
+        <button class="primary" id="oakBtn">Load profile</button>
+      </div>
+      <div class="hint">
+        Your own code: in BTD6, go to <b>Profile â†’ Settings â†’ Open Data API</b> to generate an Open Access Key (OAK).
+        It only exposes public in-game stats â€” never your account credentials.
+      </div>
+      <div id="oakStatus"></div>
+    </div>
+    <div class="panel" id="panel-leaderboard" style="display:none;">
+      <div class="lb-select-row">
+        <select id="lbType">
+          <option value="races">Races</option>
+          <option value="bosses-standard">Bosses â€” Standard</option>
+          <option value="bosses-elite">Bosses â€” Elite</option>
+          <option value="ct-player">Contested Territory â€” Players</option>
+        </select>
+        <select id="lbEvent" disabled><option>Loading eventsâ€¦</option></select>
+      </div>
+      <div id="lbStatus" class="status"></div>
+      <div class="lb-list" id="lbList"></div>
+    </div>
+  </div>
+  <!-- Profile results are inserted here after a successful lookup -->
+  <div id="profileArea"></div>
+  <footer>Data via the Ninja Kiwi Open Data API. Not affiliated with Ninja Kiwi. History is stored only in your browser.</footer>
+</div>
+<script>
+const API = "https://data.ninjakiwi.com";
+
+// ---------- tab switching ----------
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-oak").style.display = btn.dataset.tab==="oak" ? "block" : "none";
+    document.getElementById("panel-leaderboard").style.display = btn.dataset.tab==="leaderboard" ? "block" : "none";
+  });
+});  
+
+
+// ---------- fetch helper ----------
+async function fetchJSON(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Request failed (" + res.status + ")");
+  const data = await res.json();
+  if(data.success === false) throw new Error(data.error || "API returned an error");
+  return data.body;
+}
+
+// ---------- OAK / direct lookup ----------
+document.getElementById("oakBtn").addEventListener("click", ()=>{
+  const val = normalizeUserID(document.getElementById("oakInput").value);
+  if(!val){ setStatus("oakStatus","Enter a code or ID first.","error"); return; }
+  if(/^\d+$/.test(val)){
+    setStatus("oakStatus","A numeric player ID cannot be looked up here. Use an Open Access Key (OAK...) or the encrypted profile ID from a leaderboard.","error");
+    return;
+  }
+  loadProfile(val);
+});
+document.getElementById("oakInput").addEventListener("keydown", e=>{
+  if(e.key==="Enter") document.getElementById("oakBtn").click();
+});
+
+function setStatus(id, msg, kind){
+  const el = document.getElementById(id);
+  el.className = "status" + (kind ? " "+kind : "");
+  el.textContent = msg || "";
+}
+
+function normalizeUserID(value){
+  const input = value.trim();
+  if(!input) return "";
+  try{
+    const url = new URL(input);
+    return extractIdFromProfileUrl(url.pathname) || input;
+  }catch(e){
+    return input;
+  }
+}
+
+async function loadProfile(userID){
+  setStatus("oakStatus","Loading profileâ€¦","loading");
+  document.getElementById("oakBtn").disabled = true;
+  try{
+    const profile = await fetchJSON(`${API}/btd6/users/${encodeURIComponent(userID)}`);
+    setStatus("oakStatus","","");
+    renderProfile(profile, userID);
+    await recordSnapshot(userID, profile);
+    renderHistory(userID);
+    document.getElementById("profileArea").scrollIntoView({behavior:"smooth", block:"start"});
+  }catch(err){
+    setStatus("oakStatus", "Couldn't load that profile â€” " + err.message + ". Double check the code/ID.", "error");
+  }finally{
+    document.getElementById("oakBtn").disabled = false;  
+  }
+}
+
+// ---------- leaderboard browsing ----------
+const lbTypeSel = document.getElementById("lbType");
+const lbEventSel = document.getElementById("lbEvent");
+const lbList = document.getElementById("lbList");
+
+lbTypeSel.addEventListener("change", loadEventList);
+lbEventSel.addEventListener("change", loadLeaderboard);
+
+async function loadEventList(){
+  lbList.innerHTML = "";
+  lbEventSel.disabled = true;
+  lbEventSel.innerHTML = "<option>Loading eventsâ€¦</option>";
+  setStatus("lbStatus","","");
+  try{
+    const type = lbTypeSel.value;
+    let events = [];
+    if(type === "races"){
+      const races = await fetchJSON(`${API}/btd6/races`);
+      events = races.map(r=>({id:r.id, label:r.name, url:r.leaderboard}));
+    } else if(type === "bosses-standard" || type === "bosses-elite"){
+      const bosses = await fetchJSON(`${API}/btd6/bosses`);
+      const key = type === "bosses-standard" ? "leaderboard_standard_players_1" : "leaderboard_elite_players_1";
+      events = bosses.map(b=>({id:b.bossType+"_"+b.start, label:b.bossType, url:b[key]})).filter(e=>e.url);
+    } else if(type === "ct-player"){
+      const cts = await fetchJSON(`${API}/btd6/ct`);
+      events = cts.map((c,i)=>({id:"ct_"+c.start, label:"CT event â€” " + new Date(c.start).toLocaleDateString(), url:c.leaderboard_player})).filter(e=>e.url);
+    }
+    if(events.length === 0){
+      lbEventSel.innerHTML = "<option>No events found</option>";
+      return;
+    }
+    lbEventSel.innerHTML = events.map((e,i)=>`<option value="${i}">${escapeHTML(e.label)}</option>`).join("");
+    lbEventSel.dataset.events = JSON.stringify(events);
+    lbEventSel.disabled = false;
+    loadLeaderboard();
+  }catch(err){
+    lbEventSel.innerHTML = "<option>Failed to load</option>";
+    setStatus("lbStatus","Couldn't load events â€” " + err.message, "error");
+  }
+}
+
+async function loadLeaderboard(){
+  lbList.innerHTML = "";
+  setStatus("lbStatus","Loading leaderboardâ€¦","loading");
+  try{
+    const events = JSON.parse(lbEventSel.dataset.events || "[]");
+    const ev = events[lbEventSel.value];
+    if(!ev || !ev.url) throw new Error("No leaderboard URL for this event");
+    const rows = await fetchJSON(ev.url);
+    setStatus("lbStatus","","");
+    if(!rows || rows.length===0){
+      lbList.innerHTML = "<div class='no-history'>No scores yet for this event.</div>";
+      return;
+    }
+    lbList.innerHTML = rows.slice(0,50).map((r,i)=>{
+      const scoreDisplay = formatScore(r.score, lbTypeSel.value);
+      const id = extractIdFromProfileUrl(r.profile);
+      return `<div class="lb-row" data-id="${escapeHTML(id||'')}">
+        <span class="lb-rank">#${i+1}</span>
+        <span class="lb-name">${escapeHTML(r.displayName||'â€”')}</span>
+        <span class="lb-score">${scoreDisplay}</span>
+      </div>`;
+    }).join("");
+    lbList.querySelectorAll(".lb-row").forEach(row=>{
+      row.addEventListener("click", ()=>{
+        const id = row.dataset.id;
+        if(!id){ setStatus("lbStatus","This player's profile isn't retrievable (no ID in leaderboard data).","error"); return; }
+        loadProfile(id);
+      });
+    });
+  }catch(err){
+    setStatus("lbStatus","Couldn't load leaderboard â€” " + err.message, "error");
+  }
+}
+
+function extractIdFromProfileUrl(url){
+  if(!url) return null;
+  const parts = url.split("/").filter(Boolean);
+  return parts[parts.length-1] || null;
+}
+function formatScore(score, type){
+  if(score==null) return "â€”";
+  if(type==="races" || type==="bosses-standard" || type==="bosses-elite"){
+    // milliseconds -> mm:ss.xx
+    const ms = Number(score);
+    if(!isFinite(ms)) return String(score);
+    const totalSec = ms/1000;
+    const mm = Math.floor(totalSec/60);
+    const ss = (totalSec%60).toFixed(2);
+    return `${mm}:${ss.padStart(5,'0')}`;
+  }
+  return Number(score).toLocaleString();
+}
+
+// ---------- profile rendering ----------
+function sumMap(map){
+  if(!map || typeof map !== "object") return 0;
+  return Object.values(map).reduce((a,b)=> a + (typeof b === "number" ? b : 0), 0);
+}
+function topEntries(map, n=8){
+  if(!map || typeof map !== "object") return [];
+  return Object.entries(map)
+    .filter(([,v])=> typeof v === "number")
+    .sort((a,b)=> b[1]-a[1])
+    .slice(0,n);
+}
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+function fmtNum(n){
+  return typeof n === "number" ? n.toLocaleString() : (n ?? "â€”");
+}
+
+function renderProfile(p, userID){
+  const groups = [
+    {title:"Gameplay", data: p.gameplay},
+    {title:"Towers Placed", data: p.towersPlaced},
+    {title:"Heroes Placed", data: p.heroesPlaced},
+    {title:"Bloons Popped", data: p.bloonsPopped},
+    {title:"Boss Badges â€” Normal", data: p.bossBadgesNormal},
+    {title:"Boss Badges â€” Elite", data: p.bossBadgesElite},
+  ];
+
+  const groupsHTML = groups.map(g=>{
+    const entries = topEntries(g.data, 8);
+    const body = entries.length
+      ? entries.map(([k,v])=>`<div class="stat-line"><span>${escapeHTML(k.replace(/([A-Z])/g,' $1').trim())}</span><span>${fmtNum(v)}</span></div>`).join("")
+      : `<div class="empty">No data reported</div>`;
+    return `<div class="stat-group"><h3>${g.title}</h3>${body}</div>`;
+  }).join("");
+
+  const avatarSrc = p.avatarURL || "";
+
+  document.getElementById("profileArea").innerHTML = `
+    <div class="profile-card">
+      <div class="profile-head">
+        <div class="avatar-frame">${avatarSrc ? `<img src="${escapeHTML(avatarSrc)}" alt="avatar">` : "ðŸŽˆ"}</div>
+        <div>
+          <div class="profile-name">${escapeHTML(p.displayName || "Unknown Monkey")}</div>
+          <div class="profile-meta">
+            <span>Achievements: <b>${fmtNum(p.achievements ?? 'â€”')}</b></span>
+            <span>Followers: <b>${fmtNum(p.followers ?? 0)}</b></span>
+            <span>Most played: <b>${escapeHTML(p.mostExperiencedMonkey || 'â€”')}</b></span>
+          </div>
+        </div>
+        <div class="rank-ring">
+          <div class="num">${fmtNum(p.veteranRank ?? 'â€”')}</div>
+          <div class="lbl">Veteran Rank</div>
+        </div>
+      </div>
+
+      <div class="stat-groups">${groupsHTML}</div>
+
+      <div class="history-section">
+        <h3>Progress over time</h3>
+        <div class="sub">Snapshotted each time this profile is viewed in this browser.</div>
+        <div id="historyContent"></div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------- local history tracking ----------
+function snapshotKey(userID){
+  return "history:" + userID;
+}
+
+async function recordSnapshot(userID, profile){
+  try{
+    const key = snapshotKey(userID);
+    let list = [];
+    try{
+      const existing = await window.storage.get(key, false);
+      if(existing && existing.value) list = JSON.parse(existing.value);
+    }catch(e){ /* no existing key yet */ }
+
+    const snap = {
+      t: Date.now(),
+      veteranRank: profile.veteranRank ?? null,
+      achievements: Number(profile.achievements) || 0,
+      followers: profile.followers ?? 0,
+      bloonsPopped: sumMap(profile.bloonsPopped),
+      towersPlaced: sumMap(profile.towersPlaced),
+      heroesPlaced: sumMap(profile.heroesPlaced),
+    };
+
+    const last = list[list.length-1];
+    const sameDay = last && new Date(last.t).toDateString() === new Date(snap.t).toDateString();
+    if(sameDay){
+      list[list.length-1] = snap;
+    } else {
+      list.push(snap);
+    }
+    if(list.length > 90) list = list.slice(list.length-90);   
+    await window.storage.set(key, JSON.stringify(list), false);
+  }catch(err){
+    console.error("Could not save history snapshot", err);
+  }
+}
+
+let historyChart = null;
+
+async function renderHistory(userID){
+  const container = document.getElementById("historyContent");  
+  if(!container) return;
+  let list = [];
+  try{
+    const existing = await window.storage.get(snapshotKey(userID), false);
+    if(existing && existing.value) list = JSON.parse(existing.value);
+  }catch(e){ /* none yet */ }
+
+  if(list.length < 2){
+    container.innerHTML = `<div class="no-history">Only one snapshot so far (today's). Come back later and look this profile up again to start seeing a trend line.</div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="chart-box"><canvas id="historyCanvas"></canvas></div>`;
+  const ctx = document.getElementById("historyCanvas").getContext("2d");
+  const labels = list.map(s=> new Date(s.t).toLocaleDateString());
+
+  if(historyChart) historyChart.destroy();
+  historyChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Achievements",
+          data: list.map(s=>s.achievements),
+          borderColor: "#E4B455",
+          backgroundColor: "rgba(228,180,85,0.15)",
+          tension: .3, fill: true, yAxisID: "y",
+        },
+        {
+          label: "Bloons Popped (total)",
+          data: list.map(s=>s.bloonsPopped),
+          borderColor: "#4A90D9",
+          backgroundColor: "rgba(74,144,217,0.1)",
+          tension: .3, fill: false, yAxisID: "y1",
+        }
+      ]
+    },
+    options: { 
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode:"index", intersect:false},
+      plugins: {
+        legend: { labels: { color: "#EFE6CE", font:{family:"Inter", size:11} } }
+      },
+      scales: {
+        x: { ticks:{color:"#9FB0A2", font:{size:10}}, grid:{color:"#2A3B2F"} },
+        y: { position:"left", ticks:{color:"#E4B455", font:{size:10}}, grid:{color:"#2A3B2F"} },
+        y1:{ position:"right", ticks:{color:"#4A90D9", font:{size:10}}, grid:{drawOnChartArea:false} },
+      }
+    }
+  });  
+}
+
+// init
+loadEventList();
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Chatbot Test</title>
+</head>
+<body>
+<h1>Chatbot Test</h1>
+<div id="chat" style="border:1px solid black; height:300px; width:400px; overflow:auto; padding:10px;"></div>
+<br/>
+<input type="text" id="userInput" placeholder="Type a message" />
+<button onclick="sendMessage()">Send</button>
+
+<script>
+function sendMessage() {
+    const inputField = document.getElementById('userInput');
+    const message = inputField.value;
+    if (!message) return;
+    const chatDiv = document.getElementById('chat');
+
+    // Show user message
+    chatDiv.innerHTML += "<p><b>You:</b> " + message + "</p>";
+    inputField.value = '';
+
+    // Send request
+    fetch('/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_input: message})
+    })
+    .then(res => {
+        console.log("Fetch response status:", res.status); // Log status
+        return res.json();
+    })
+    .then(data => {
+        console.log("Received data:", data); // Log the data
+        chatDiv.innerHTML += "<p><b>Bot:</b> " + data.response + "</p>";
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+    })
+    .catch(error => {
+        console.error("Error in fetch:", error);
+    });
+}
+</script>
+</body>
+</html>

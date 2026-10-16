@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Realm of the Sundered Crown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --parchment:#e9dcb9;
+    --parchment-dark:#d8c69a;
+    --ink:#2b1f14;
+    --burgundy:#6e1f24;
+    --burgundy-dark:#4a1418;
+    --forest:#2f4a35;
+    --gold:#a9791f;
+    --gold-bright:#d4a72c;
+    --steel:#3a4048;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#1b140d;font-family:'EB Garamond', serif;color:var(--ink);}
+  #app{
+    width:100%;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:18px;
+  }
+  #frame{
+    width:1160px;
+    max-width:100%;
+    background:
+      radial-gradient(ellipse at top left, rgba(255,255,255,0.15), transparent 60%),
+      linear-gradient(160deg, var(--parchment) 0%, var(--parchment-dark) 100%);
+    border:10px solid var(--ink);
+    outline:3px solid var(--gold);
+    outline-offset:-16px;
+    border-radius:6px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 0 80px rgba(90,60,20,0.25);
+    padding:18px 22px 22px;
+    position:relative;
+  }
+  h1.title{
+    font-family:'Cinzel Decorative', serif;
+    text-align:center;
+    font-size:32px;
+    margin:2px 0 2px;
+    color:var(--burgundy-dark);
+    text-shadow:1px 1px 0 rgba(255,255,255,0.35);
+    letter-spacing:1px;
+  }
+  .subtitle{
+    text-align:center;
+    font-style:italic;
+    color:#5a4327;
+    margin-bottom:10px;
+    font-size:15px;
+  }
+  #layout{
+    display:flex;
+    gap:16px;
+  }
+  #mapWrap{
+    flex:0 0 auto;
+    border:4px solid var(--ink);
+    border-radius:4px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.4);
+    background:#c9b98a;
+    position:relative;
+  }
+  canvas{display:block; border-radius:2px;}
+  #sidebar{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    min-width:300px;
+  }
+  .panel{
+    background: rgba(255,250,235,0.55);
+    border:2px solid var(--gold);
+    border-radius:6px;
+    padding:10px 14px;
+    box-shadow: inset 0 0 12px rgba(120,90,40,0.2);
+  }
+  .panel h2{
+    font-family:'Cinzel', serif;
+    font-size:16px;
+    margin:0 0 8px;
+    color:var(--burgundy-dark);
+    border-bottom:1px solid var(--gold);
+    padding-bottom:4px;
+    letter-spacing:0.5px;
+  }
+  .statrow{display:flex; justify-content:space-between; font-size:14.5px; margin:3px 0;}
+  .statrow b{color:var(--burgundy-dark);}
+  #log{
+    height:260px;
+    overflow-y:auto;
+    font-size:13.5px;
+    line-height:1.4;
+    padding-right:4px;
+  }
+  #log .turnhead{
+    font-family:'Cinzel', serif;
+    font-size:12px;
+    color:var(--burgundy-dark);
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    margin:6px 0 4px;
+    border-bottom:none !important;
+    opacity:0.85;
+  }
+  #log div{margin-bottom:4px; border-bottom:1px dotted #b6a26e; padding-bottom:3px;}
+  .btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+  button{
+    font-family:'Cinzel', serif;
+    background:linear-gradient(180deg,#8a2530,#5e161c);
+    color:#f2e2c0;
+    border:1px solid #2b0a0d;
+    border-radius:4px;
+    padding:8px 14px;
+    font-size:13px;
+    cursor:pointer;
+    letter-spacing:0.4px;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.4);
+    transition: transform 0.08s ease;
+  }
+  button:hover:not(:disabled){transform: translateY(-1px); filter:brightness(1.12);}
+  button:active:not(:disabled){transform: translateY(1px);}
+  button:disabled{opacity:0.4; cursor:not-allowed;}
+  button.secondary{background:linear-gradient(180deg,#3a4a3d,#20281f); color:#e9dcb9;}
+  button.gold{background:linear-gradient(180deg,#c99a2e,#8a6417); color:#2b1f14;}
+  #selInfo{font-size:13.5px; min-height:40px;}
+  .legend{display:flex; flex-wrap:wrap; gap:8px; font-size:12.5px;}
+  .legend span{display:flex; align-items:center; gap:5px;}
+  .swatch{width:11px; height:11px; border-radius:2px; border:1px solid #2b1f14; display:inline-block;}
+  #overlay{
+    position:absolute; inset:0;
+    background:rgba(10,6,3,0.78);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    border-radius:4px;
+  }
+  #overlay.show{display:flex;}
+  #jousttPanel{
+    background:linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+    border:4px solid var(--gold);
+    border-radius:8px;
+    padding:20px 26px;
+    width:640px;
+    max-width:92%;
+    text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  }
+  #jousttPanel h3{font-family:'Cinzel Decorative'; margin:2px 0 4px; color:var(--burgundy-dark);}
+  #joustCanvasWrap{margin:10px 0; border:2px solid var(--ink); border-radius:4px; background:#7d9db8;}
+  #resultPanel{
+    background:linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+    border:4px solid var(--gold);
+    border-radius:8px;
+    padding:22px 30px;
+    width:520px;
+    max-width:90%;
+    text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  }
+  #resultPanel h3{font-family:'Cinzel Decorative'; color:var(--burgundy-dark); margin-top:0;}
+  #startPanel, #savePanel, #loadPanel{
+    background:linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+    border:4px solid var(--gold);
+    border-radius:8px;
+    padding:22px 28px;
+    width:560px;
+    max-width:92%;
+    text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,0.6);
+  }
+  #startPanel h3, #savePanel h3, #loadPanel h3{
+    font-family:'Cinzel Decorative'; color:var(--burgundy-dark); margin-top:0;
+  }
+  .diffChoices{display:flex; gap:12px; justify-content:center; margin:16px 0 6px; flex-wrap:wrap;}
+  .diffCard{
+    border:2px solid var(--gold); border-radius:6px; padding:12px 16px; width:150px;
+    background:rgba(255,250,235,0.6); cursor:pointer; transition:transform 0.1s ease;
+  }
+  .diffCard:hover{transform:translateY(-2px); filter:brightness(1.06);}
+  .diffCard h4{margin:0 0 6px; font-family:'Cinzel', serif; color:var(--burgundy-dark);}
+  .diffCard p{margin:0; font-size:12.5px; line-height:1.4;}
+  .codeBox{
+    width:100%; height:90px; font-family:monospace; font-size:12px; resize:none;
+    border:1px solid var(--ink); border-radius:4px; padding:8px; background:#fbf6e6;
+  }
+  .flag{
+    display:inline-block; width:14px; height:14px; border:1px solid #2b1f14; margin-right:5px; vertical-align:-2px; border-radius:2px;
+  }
+  footer{
+    text-align:center; font-size:11.5px; color:#5a4327; margin-top:10px; font-style:italic;
+  }
+  @media (max-width:900px){
+    #layout{flex-direction:column;}
+    #mapWrap{align-self:center;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="frame">
+    <h1 class="title">⚜ Realm of the Sundered Crown ⚜</h1>
+    <div class="subtitle">Unite the shires under your banner. Attack, recruit, and joust for glory.</div>
+
+    <div id="layout">
+      <div id="mapWrap">
+        <canvas id="map" width="700" height="560"></canvas>
+      </div>
+
+      <div id="sidebar">
+        <div class="panel">
+          <h2>House Blackwood</h2>
+          <div class="statrow"><span>Difficulty</span><b id="diffStat">Normal</b></div>
+          <div class="statrow"><span>Turn</span><b id="turnNum">1</b></div>
+          <div class="statrow"><span>Treasury</span><b id="goldStat">0</b> gold</div>
+          <div class="statrow"><span>Territories held</span><b id="terrStat">0</b> / 16</div>
+          <div class="statrow"><span>Reserve knights</span><b id="reserveStat">0</b></div>
+          <div class="btnrow">
+            <button id="recruitBtn" class="gold">Recruit 5 knights (50g)</button>
+            <button id="endTurnBtn" class="secondary">End Turn</button>
+          </div>
+          <div class="btnrow">
+            <button id="saveBtn" class="secondary">Save Game</button>
+            <button id="loadBtn" class="secondary">Load Game</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Selected Territory</h2>
+          <div id="selInfo">Click a shire on the map to inspect it.</div>
+          <div class="btnrow" id="actionBtns"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Chronicle</h2>
+          <div id="log"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Houses of the Realm</h2>
+          <div class="legend" id="legend"></div>
+        </div>
+      </div>
+    </div>
+    <footer>An original strategy game in the spirit of classic 1980s castle-conquest games. All art and code generated fresh — no assets reproduced from any existing title.</footer>
+
+    <div id="overlay">
+      <div id="jousttPanel" style="display:none;">
+        <h3>The Joust</h3>
+        <div>Time your strike — click when the lance-tip is in the gold zone for a mighty bonus!</div>
+        <div id="joustCanvasWrap"><canvas id="joustCanvas" width="580" height="160"></canvas></div>
+        <button id="joustClickBtn" class="gold">STRIKE!</button>
+      </div>
+      <div id="resultPanel" style="display:none;">
+        <h3 id="resultTitle">Battle Result</h3>
+        <div id="resultBody" style="font-size:15px; line-height:1.5;"></div>
+        <div class="btnrow" style="justify-content:center; margin-top:14px;">
+          <button id="resultCloseBtn">Continue</button>
+        </div>
+      </div>
+
+      <div id="startPanel" style="display:none;">
+        <h3>Choose Your Path</h3>
+        <div>Select a difficulty before you take up the banner of House Blackwood.</div>
+        <div class="diffChoices">
+          <div class="diffCard" data-diff="easy">
+            <h4>Easy</h4>
+            <p>Rival houses grow and attack cautiously. Generous treasury to start.</p>
+          </div>
+          <div class="diffCard" data-diff="normal">
+            <h4>Normal</h4>
+            <p>A balanced struggle for the crown. Standard treasury and rival strength.</p>
+          </div>
+          <div class="diffCard" data-diff="hard">
+            <h4>Hard</h4>
+            <p>Rival houses grow fast and strike aggressively. Modest treasury to start.</p>
+          </div>
+        </div>
+        <div style="font-size:12px; margin-top:6px; opacity:0.75;">Already have a save code? <span id="loadFromStartLink" style="text-decoration:underline; cursor:pointer;">Load a saved game instead</span>.</div>
+      </div>
+
+      <div id="savePanel" style="display:none;">
+        <h3>Save Game</h3>
+        <div style="font-size:13.5px;">Copy this code and paste it somewhere safe. Use "Load Game" with this code to resume later.</div>
+        <textarea id="saveCode" class="codeBox" readonly></textarea>
+        <div class="btnrow" style="justify-content:center; margin-top:10px;">
+          <button id="copyCodeBtn" class="gold">Copy Code</button>
+          <button id="saveCloseBtn" class="secondary">Close</button>
+        </div>
+      </div>
+
+      <div id="loadPanel" style="display:none;">
+        <h3>Load Game</h3>
+        <div style="font-size:13.5px;">Paste a save code below to resume your realm.</div>
+        <textarea id="loadCode" class="codeBox" placeholder="Paste save code here..."></textarea>
+        <div class="btnrow" style="justify-content:center; margin-top:10px;">
+          <button id="loadConfirmBtn" class="gold">Load</button>
+          <button id="loadCloseBtn" class="secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Houses ----------
+  const HOUSES = {
+    player:   { name:"House Blackwood", color:"#1f4fa0", dark:"#12315f", flag:"🦅" },
+    york:     { name:"House Ashworth",  color:"#8a1620", dark:"#5c0e15", flag:"🐺" },
+    lancaster:{ name:"House Thorncrest",color:"#5c2d8a", dark:"#3b1a5c", flag:"🦌" },
+    norman:   { name:"House Ravensmoor",color:"#2d6b3f", dark:"#1c4527", flag:"🐗" },
+    neutral:  { name:"Unclaimed",       color:"#8a8172", dark:"#5c5548", flag:"—" }
+  };
+
+  // ---------- Territories ----------
+  // Rough stylised England layout (not geographically literal)
+  const T = {
+    northumbria: {name:"Northumbria", x:430, y:55,  owner:"york",      army:6},
+    durham:      {name:"Durham",      x:405, y:115, owner:"york",      army:5},
+    york:        {name:"York",        x:460, y:165, owner:"york",      army:7},
+    lincoln:     {name:"Lincoln",     x:520, y:225, owner:"york",      army:5},
+    nottingham:  {name:"Nottingham",  x:440, y:235, owner:"lancaster", army:5},
+    wales:       {name:"Wales",       x:280, y:270, owner:"lancaster", army:6},
+    mercia:      {name:"Mercia",      x:395, y:290, owner:"lancaster", army:6},
+    eastanglia:  {name:"East Anglia", x:560, y:290, owner:"lancaster", army:5},
+    essex:       {name:"Essex",       x:520, y:355, owner:"norman",    army:5},
+    london:      {name:"London",      x:465, y:385, owner:"norman",    army:8},
+    kent:        {name:"Kent",        x:535, y:420, owner:"norman",    army:6},
+    sussex:      {name:"Sussex",      x:450, y:445, owner:"norman",    army:5},
+    somerset:    {name:"Somerset",    x:320, y:375, owner:"player",    army:6},
+    wessex:      {name:"Wessex",      x:390, y:420, owner:"player",    army:7},
+    devon:       {name:"Devon",       x:260, y:440, owner:"player",    army:5},
+    cornwall:    {name:"Cornwall",    x:195, y:480, owner:"player",    army:6},
+  };
+  const ADJ = {
+    northumbria:["durham"],
+    durham:["northumbria","york"],
+    york:["durham","lincoln","nottingham"],
+    lincoln:["york","nottingham","eastanglia"],
+    nottingham:["york","lincoln","wales","mercia"],
+    wales:["nottingham","mercia","somerset","devon"],
+    mercia:["nottingham","wales","eastanglia","london","somerset"],
+    eastanglia:["lincoln","mercia","essex"],
+    essex:["eastanglia","london","kent"],
+    london:["mercia","essex","kent","sussex","wessex"],
+    somerset:["wales","mercia","wessex","devon"],
+    wessex:["somerset","london","sussex","devon"],
+    sussex:["london","wessex","kent"],
+    kent:["essex","london","sussex"],
+    devon:["wales","somerset","wessex","cornwall"],
+    cornwall:["devon"]
+  };
+  for (const id in T) T[id].id = id;
+
+  // ---------- Difficulty ----------
+  const DIFFICULTY = {
+    easy:   { label:"Easy",   startGold:200, aiAggression:0.55, aiGrowth:0.40, incomeMult:1.2 },
+    normal: { label:"Normal", startGold:120, aiAggression:0.80, aiGrowth:0.60, incomeMult:1.0 },
+    hard:   { label:"Hard",   startGold:80,  aiAggression:1.05, aiGrowth:0.80, incomeMult:0.85 }
+  };
+
+  // ---------- Game state ----------
+  let state = {
+    gold: 120,
+    reserve: 4,
+    turn: 1,
+    selected: null,
+    gameOver: false,
+    difficulty: "normal"
+  };
+  let pendingJoust = null; // {attackerId, defenderId, sendArmy}
+
+  const $ = (id)=>document.getElementById(id);
+  const logEl = $("log");
+  function log(msg){
+    const d = document.createElement("div");
+    d.innerHTML = msg;
+    logEl.prepend(d);
+  }
+  function logTurnHead(){
+    const d = document.createElement("div");
+    d.className = "turnhead";
+    d.textContent = `— Turn ${state.turn} —`;
+    logEl.prepend(d);
+  }
+
+  function ownedTerritories(owner){
+    return Object.values(T).filter(t=>t.owner===owner);
+  }
+
+  function updateStats(){
+    $("goldStat").textContent = state.gold;
+    $("terrStat").textContent = ownedTerritories("player").length;
+    $("reserveStat").textContent = state.reserve;
+    $("turnNum").textContent = state.turn;
+    $("diffStat").textContent = DIFFICULTY[state.difficulty].label;
+    $("recruitBtn").disabled = state.gold < 50;
+  }
+
+  // ---------- Canvas: map rendering ----------
+  const mapCanvas = $("map");
+  const ctx = mapCanvas.getContext("2d");
+
+  function drawCastleIcon(cx, cy, r, color, dark){
+    // base
+    ctx.save();
+    ctx.translate(cx, cy);
+    // shadow
+    ctx.beginPath();
+    ctx.ellipse(0, r*0.85, r*1.15, r*0.35, 0, 0, Math.PI*2);
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fill();
+
+    // main keep body
+    const grad = ctx.createLinearGradient(0,-r,0,r);
+    grad.addColorStop(0, lighten(color, 25));
+    grad.addColorStop(1, dark);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "#1b1209";
+    ctx.lineWidth = 1.3;
+
+    const w = r*1.5;
+    ctx.beginPath();
+    ctx.rect(-w/2, -r*0.2, w, r*1.1);
+    ctx.fill(); ctx.stroke();
+
+    // battlements
+    const teeth = 5;
+    const toothW = w/teeth;
+    ctx.beginPath();
+    for(let i=0;i<teeth;i++){
+      const tx = -w/2 + i*toothW;
+      if(i%2===0){
+        ctx.rect(tx, -r*0.2 - r*0.28, toothW*0.85, r*0.28);
+      }
+    }
+    ctx.fill(); ctx.stroke();
+
+    // two side towers
+    [-w/2 - r*0.22, w/2 - r*0.02].forEach(tx=>{
+      ctx.beginPath();
+      ctx.rect(tx, -r*0.55, r*0.32, r*1.5);
+      ctx.fill(); ctx.stroke();
+      // tower roof
+      ctx.beginPath();
+      ctx.moveTo(tx-2, -r*0.55);
+      ctx.lineTo(tx + r*0.16, -r*0.95);
+      ctx.lineTo(tx + r*0.32+2, -r*0.55);
+      ctx.closePath();
+      ctx.fillStyle = dark;
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = grad;
+    });
+
+    // gate
+    ctx.beginPath();
+    ctx.arc(0, r*0.9, r*0.22, Math.PI, 0);
+    ctx.lineTo(r*0.22, r*0.9+0.001);
+    ctx.fillStyle = "#1b1209";
+    ctx.fill();
+
+    // flag pole + flag
+    ctx.beginPath();
+    ctx.moveTo(0, -r*0.48);
+    ctx.lineTo(0, -r*0.9);
+    ctx.strokeStyle = "#3a2a17";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -r*0.9);
+    ctx.lineTo(r*0.5, -r*0.8);
+    ctx.lineTo(0, -r*0.68);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#1b1209";
+    ctx.lineWidth = 0.8;
+    ctx.fill(); ctx.stroke();
+
+    ctx.restore();
+  }
+  
+
+  function lighten(hex, amt){
+    const c = hex.replace("#","");
+    const num = parseInt(c,16);
+    let r = (num>>16)+amt, g=((num>>8)&0xff)+amt, b=(num&0xff)+amt;
+    r=Math.min(255,Math.max(0,r)); g=Math.min(255,Math.max(0,g)); b=Math.min(255,Math.max(0,b));
+    return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+  }
+
+  function drawMap(){
+    ctx.clearRect(0,0,mapCanvas.width, mapCanvas.height);
+
+    // background: sea + land texture
+    ctx.fillStyle = "#7d9db8";
+    ctx.fillRect(0,0,mapCanvas.width, mapCanvas.height);
+
+    // land blob (soft rounded backdrop behind territories)
+    ctx.save();
+    ctx.beginPath();
+    ctx.fillStyle = "#c9b98a";
+    ctx.moveTo(430,20);
+    ctx.bezierCurveTo(520,40, 560,150, 590,260);
+    ctx.bezierCurveTo(600,320, 570,340, 560,380);
+    ctx.bezierCurveTo(590,400, 580,440, 555,460);
+    ctx.bezierCurveTo(520,470, 470,470, 430,500);
+    ctx.bezierCurveTo(380,520, 300,540, 230,510);
+    ctx.bezierCurveTo(180,500, 170,470, 200,440);
+    ctx.bezierCurveTo(220,420, 230,400, 250,380);
+    ctx.bezierCurveTo(220,350, 250,320, 270,300);
+    ctx.bezierCurveTo(240,270, 250,230, 290,220);
+    ctx.bezierCurveTo(300,180, 330,150, 360,130);
+    ctx.bezierCurveTo(340,90, 370,40, 430,20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#8a7a52";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+
+    // texture speckles
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    for(let i=0;i<160;i++){
+      ctx.fillStyle = (i%2===0)?"#4a3f28":"#efe6c8";
+      ctx.beginPath();
+      ctx.arc(190+Math.random()*400, 30+Math.random()*470, Math.random()*2+0.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // connections (roads)
+    ctx.save();
+    ctx.strokeStyle = "rgba(60,42,20,0.55)";
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([6,5]);
+    const drawn = new Set();
+    for(const id in ADJ){
+      for(const n of ADJ[id]){
+        const key = [id,n].sort().join("-");
+        if(drawn.has(key)) continue;
+        drawn.add(key);
+        ctx.beginPath();
+        ctx.moveTo(T[id].x, T[id].y);
+        ctx.lineTo(T[n].x, T[n].y);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // territories
+    for(const id in T){
+      const t = T[id];
+      const h = HOUSES[t.owner];
+      const isSel = state.selected === id;
+
+      if(isSel){
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 34, 0, Math.PI*2);
+        ctx.strokeStyle = "#f2c14e";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([4,3]);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawCastleIcon(t.x, t.y, 22, h.color, h.dark);
+
+      // label plate
+      ctx.font = "bold 12px Georgia, serif";
+      ctx.textAlign = "center";
+      const label = t.name;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = "rgba(255,248,225,0.88)";
+      ctx.strokeStyle = "rgba(40,25,10,0.7)";
+      ctx.lineWidth = 1;
+      roundRect(ctx, t.x - tw/2 - 5, t.y + 30, tw+10, 16, 3);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#2b1f14";
+      ctx.fillText(label, t.x, t.y + 42);
+
+      // army count badge
+      ctx.beginPath();
+      ctx.arc(t.x + 20, t.y - 24, 11, 0, Math.PI*2);
+      ctx.fillStyle = "#2b1f14";
+      ctx.fill();
+      ctx.fillStyle = "#f2e2c0";
+      ctx.font = "bold 11px Georgia, serif";
+      ctx.fillText(t.army, t.x + 20, t.y - 20);
+    }
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function findClicked(mx,my){
+    for(const id in T){
+      const t = T[id];
+      const dx = mx-t.x, dy = my-t.y;
+      if(dx*dx+dy*dy <= 30*30) return id;
+    }
+    return null;
+  }
+
+  mapCanvas.addEventListener("click", (e)=>{
+    if(state.gameOver) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const scaleX = mapCanvas.width/rect.width;
+    const scaleY = mapCanvas.height/rect.height;
+    const mx = (e.clientX-rect.left)*scaleX;
+    const my = (e.clientY-rect.top)*scaleY;
+    const id = findClicked(mx,my);
+    if(id){
+      state.selected = id;
+      renderSelection();
+      drawMap();
+    }
+  });
+
+  // ---------- Selection panel ----------
+  function renderSelection(){
+    const info = $("selInfo");
+    const btns = $("actionBtns");
+    btns.innerHTML = "";
+    if(!state.selected){
+      info.textContent = "Click a shire on the map to inspect it.";
+      return;
+    }
+    const t = T[state.selected];
+    const h = HOUSES[t.owner];
+    info.innerHTML = `<span class="flag" style="background:${h.color}"></span><b>${t.name}</b> — held by ${h.name}<br>Garrison: <b>${t.army}</b> knights`;
+
+    if(t.owner === "player"){
+      const neighborsEnemy = ADJ[t.id].filter(n => T[n].owner !== "player");
+      if(t.army > 1 && neighborsEnemy.length){
+        neighborsEnemy.forEach(n=>{
+          const b = document.createElement("button");
+          b.textContent = `Attack ${T[n].name}`;
+          b.onclick = ()=> openAttackChooser(t.id, n);
+          btns.appendChild(b);
+        });
+      } else if (t.army <= 1){
+        info.innerHTML += "<br><i>Garrison too small to attack from here.</i>";
+      }
+      const neighborsFriendly = ADJ[t.id].filter(n=>T[n].owner==="player");
+      if(neighborsFriendly.length && t.army>1){
+        const b = document.createElement("button");
+        b.className="secondary";
+        b.textContent = "Reinforce neighbor (-3 here)";
+        b.disabled = t.army <= 3;
+        b.onclick = ()=>{
+          const dest = neighborsFriendly[0];
+          T[t.id].army -= 3;
+          T[dest].army += 3;
+          log(`Knights march from <b>${t.name}</b> to <b>${T[dest].name}</b>.`);
+          renderSelection(); drawMap(); updateStats();
+        };
+        btns.appendChild(b);
+      }
+    } else {
+      info.innerHTML += `<br><i>Not your territory.</i>`;
+    }
+  }
+
+  let attackChoice = null;
+  function openAttackChooser(fromId, toId){
+    const t = T[fromId];
+    const maxSend = t.army - 1;
+    const send = Math.max(1, Math.min(maxSend, Math.ceil(maxSend*0.8)));
+    attackChoice = {fromId, toId, send};
+    beginJoust(fromId, toId, send);
+  }
+
+  // ---------- Joust minigame ----------
+  const joustCanvas = $("joustCanvas");
+  const jctx = joustCanvas.getContext("2d");
+  let joustAnim = null;
+  let joustResult = null;
+
+  function beginJoust(fromId, toId, send){
+    pendingJoust = {fromId, toId, send};
+    $("overlay").classList.add("show");
+    $("jousttPanel").style.display = "block";
+    $("resultPanel").style.display = "none";
+    runJoustAnimation();
+  }
+
+  function runJoustAnimation(){
+    let t0 = performance.now();
+    const duration = 2600;
+    let clicked = false;
+    let clickT = null;
+    const zoneCenter = 0.5 + (Math.random()*0.16-0.08); // center of bullseye, slight randomization
+    const zoneWidth = 0.09;
+    const closeWidth = 0.22;
+
+    joustAnim = { done:false };
+
+    function frame(now){
+      if(joustAnim.done) return;
+      const elapsed = now - t0;
+      let p = (elapsed % duration)/duration; // 0..1 sweep
+      // ping-pong sweep for a lance-tip indicator
+      let sweep = p<0.5 ? p*2 : 2-p*2; // 0->1->0
+
+      jctx.clearRect(0,0,joustCanvas.width, joustCanvas.height);
+      // field
+      const grad = jctx.createLinearGradient(0,0,0,joustCanvas.height);
+      grad.addColorStop(0,"#a9c6dd");
+      grad.addColorStop(1,"#7ba05c");
+      jctx.fillStyle = grad;
+      jctx.fillRect(0,0,joustCanvas.width, joustCanvas.height);
+
+      // tilt barrier line
+      jctx.strokeStyle = "#5c4326";
+      jctx.lineWidth = 4;
+      jctx.beginPath();
+      jctx.moveTo(0, joustCanvas.height/2);
+      jctx.lineTo(joustCanvas.width, joustCanvas.height/2);
+      jctx.stroke();
+
+      // gauge track
+      const trackY = 120, trackX0 = 30, trackX1 = 550;
+      jctx.fillStyle = "rgba(40,25,10,0.55)";
+      roundRect(jctx, trackX0, trackY-8, trackX1-trackX0, 16, 8);
+      jctx.fill();
+
+      // close zone
+      const czx0 = trackX0 + (zoneCenter-closeWidth/2)*(trackX1-trackX0);
+      const czw = closeWidth*(trackX1-trackX0);
+      jctx.fillStyle = "rgba(210,150,50,0.7)";
+      jctx.fillRect(czx0, trackY-8, czw, 16);
+
+      // bullseye zone
+      const bzx0 = trackX0 + (zoneCenter-zoneWidth/2)*(trackX1-trackX0);
+      const bzw = zoneWidth*(trackX1-trackX0);
+      jctx.fillStyle = "#f2c14e";
+      jctx.fillRect(bzx0, trackY-8, bzw, 16);
+
+      // indicator
+      const ix = trackX0 + sweep*(trackX1-trackX0);
+      jctx.beginPath();
+      jctx.arc(ix, trackY, 9, 0, Math.PI*2);
+      jctx.fillStyle = "#c8262f";
+      jctx.strokeStyle = "#2b1f14";
+      jctx.lineWidth = 2;
+      jctx.fill(); jctx.stroke();
+
+      // riders converging
+      const progress = Math.min(elapsed/duration, 1);
+      drawRider(jctx, 60 + progress*180, joustCanvas.height/2 - 5, 1, "#1f4fa0");
+      drawRider(jctx, joustCanvas.width-60 - progress*180, joustCanvas.height/2 - 5, -1, "#8a1620");
+
+      if(!clicked && elapsed < duration){
+        requestAnimationFrame(frame);
+      } else if(!clicked){
+        // time ran out - treat as miss
+        resolveJoust(0, zoneCenter, zoneWidth, closeWidth);
+      }
+    }
+
+    $("joustClickBtn").onclick = ()=>{
+      if(clicked || joustAnim.done) return;
+      clicked = true;
+      joustAnim.done = true;
+      const now = performance.now();
+      const elapsed = (now - t0) % duration;
+      const p = elapsed/duration;
+      const sweep = p<0.5 ? p*2 : 2-p*2;
+      resolveJoust(sweep, zoneCenter, zoneWidth, closeWidth);
+    };
+
+    requestAnimationFrame(frame);
+  }
+
+  function drawRider(c, x, y, dir, color){
+    c.save();
+    c.translate(x,y);
+    c.scale(dir,1);
+    // horse body
+    c.fillStyle = "#6b4a2c";
+    c.beginPath();
+    c.ellipse(0,10,26,12,0,0,Math.PI*2);
+    c.fill();
+    // horse head/neck
+    c.beginPath();
+    c.moveTo(20,2); c.lineTo(40,-8); c.lineTo(34,4); c.closePath();
+    c.fill();
+    // legs
+    c.strokeStyle="#4a3320"; c.lineWidth=4;
+    c.beginPath(); c.moveTo(-16,18); c.lineTo(-18,32); c.moveTo(12,18); c.lineTo(14,32); c.stroke();
+    // rider
+    c.fillStyle = color;
+    c.beginPath();
+    c.ellipse(0,-8,8,12,0,0,Math.PI*2);
+    c.fill();
+    c.beginPath();
+    c.arc(0,-22,6,0,Math.PI*2);
+    c.fillStyle="#d8b98a";
+    c.fill();
+    // lance
+    c.strokeStyle="#2b1f14"; c.lineWidth=3;
+    c.beginPath();
+    c.moveTo(6,-10);
+    c.lineTo(50,-14);
+    c.stroke();
+    c.restore();
+  }
+
+  function resolveJoust(sweep, center, zoneW, closeW){
+    joustAnim.done = true;
+    let bonus = 0, label = "Missed the tilt";
+    const dist = Math.abs(sweep-center);
+    if(dist <= zoneW/2){ bonus = 0.35; label = "Perfect strike!"; }
+    else if(dist <= closeW/2){ bonus = 0.15; label = "Glancing blow"; }
+    else { bonus = 0; label = "Missed the tilt"; }
+
+    setTimeout(()=>{
+      $("jousttPanel").style.display = "none";
+      resolveBattle(pendingJoust.fromId, pendingJoust.toId, pendingJoust.send, bonus, label);
+      pendingJoust = null;
+    }, 500);
+  }
+
+  // ---------- Combat resolution ----------
+  function resolveBattle(fromId, toId, send, joustBonus, joustLabel){
+    const atk = T[fromId];
+    const def = T[toId];
+    const attackPower = send * (1 + joustBonus) * (0.85 + Math.random()*0.3);
+    const defensePower = def.army * (0.85 + Math.random()*0.3) * 1.05; // slight home advantage
+
+    const win = attackPower > defensePower;
+    let body = `<i>${joustLabel}</i> — your knights charge with ${(joustBonus*100).toFixed(0)}% bonus.<br><br>`;
+
+    if(win){
+      const survivors = Math.max(1, Math.round(send * (attackPower>0?Math.min(1, defensePower/attackPower):1) * 0.6));
+      const prevOwner = def.owner;
+      def.owner = "player";
+      def.army = Math.max(1, survivors);
+      atk.army -= send;
+      body += `<b>Victory!</b> ${def.name} falls to House Blackwood. ${def.army} knights now hold the castle.`;
+      log(`⚔️ Victory at <b>${def.name}</b>! ${send} knights from ${atk.name} (${joustLabel.toLowerCase()}) overwhelmed the garrison and took it from ${HOUSES[prevOwner].name}. ${def.army} knights now garrison the castle.`);
+      if(ownedTerritories(prevOwner).length===0) log(`🏳️ ${HOUSES[prevOwner].name} has been wiped out.`);
+    } else {
+      const losses = Math.round(send * (0.7+Math.random()*0.3));
+      atk.army -= Math.min(atk.army-1, losses);
+      def.army = Math.max(1, def.army - Math.round(send*0.3));
+      body += `<b>Defeat.</b> Your knights are repelled from ${def.name} with heavy losses.`;
+      log(`🛡️ Assault on <b>${def.name}</b> failed — ${losses} of your knights fell (${joustLabel.toLowerCase()}). ${atk.name} now holds ${atk.army}.`);
+    }
+
+    $("resultTitle").textContent = win ? "Victory!" : "Defeat";
+    $("resultBody").innerHTML = body;
+    $("resultPanel").style.display = "block";
+
+    checkGameOver();
+    updateStats();
+    drawMap();
+    renderSelection();
+  }
+
+  $("resultCloseBtn").onclick = ()=>{
+    $("overlay").classList.remove("show");
+  };
+
+  // ---------- Recruit ----------
+  $("recruitBtn").onclick = ()=>{
+    if(state.gold < 50) return;
+    state.gold -= 50;
+    // add to a random owned territory (frontier bias: smallest garrison)
+    const owned = ownedTerritories("player");
+    if(owned.length===0) return;
+    owned.sort((a,b)=>a.army-b.army);
+    owned[0].army += 5;
+    log(`⚜️ 5 new knights are levied for <b>50 gold</b> and sent to <b>${owned[0].name}</b> (now ${owned[0].army} strong). Treasury: ${state.gold}g.`);
+    updateStats(); drawMap(); renderSelection();
+  };
+
+  // ---------- AI turn ----------
+  function aiTurn(house){
+    const diff = DIFFICULTY[state.difficulty];
+    const owned = ownedTerritories(house);
+    if(owned.length===0) return;
+    // find best attack: strongest territory attacking weakest adjacent non-ally
+    let best = null;
+    owned.forEach(t=>{
+      if(t.army<=2) return;
+      ADJ[t.id].forEach(nId=>{
+        const n = T[nId];
+        if(n.owner===house) return;
+        const send = Math.floor(t.army*0.7*diff.aiAggression);
+        if(send<1) return;
+        const score = send - n.army; // prefer easy wins
+        if(!best || score>best.score){
+          best = {from:t, to:n, send, score};
+        }
+      });
+    });
+    if(best && best.score > -2){
+      const attackPower = best.send * (0.85+Math.random()*0.3);
+      const defensePower = best.to.army * (0.85+Math.random()*0.3) * (best.to.owner==="player"?1.05:1);
+      if(attackPower>defensePower){
+        const survivors = Math.max(1, Math.round(best.send * Math.min(1, defensePower/attackPower) * 0.6));
+        const prevOwner = best.to.owner;
+        best.to.owner = house;
+        best.to.army = survivors;
+        best.from.army -= best.send;
+        log(`${HOUSES[house].flag} <b>${HOUSES[house].name}</b> sends ${best.send} knights from ${best.from.name} and seizes <b>${best.to.name}</b> from ${HOUSES[prevOwner].name} (${survivors} knights garrisoned).`);
+        if(prevOwner==="player") log(`⚠️ You have lost <b>${best.to.name}</b>!`);
+        if(ownedTerritories(prevOwner).length===0 && prevOwner!=="player") log(`🏳️ ${HOUSES[prevOwner].name} has been wiped out.`);
+      } else {
+        const losses = Math.round(best.send*0.6);
+        best.from.army -= Math.min(best.from.army-1, losses);
+        best.to.army = Math.max(1, best.to.army - Math.round(best.send*0.2));
+        log(`${HOUSES[house].flag} <b>${HOUSES[house].name}</b> assaults <b>${best.to.name}</b> with ${best.send} knights and is repelled, losing ${losses}.`);
+      }
+    }
+    // reinforcement growth
+    let grew = 0;
+    owned.forEach(t=>{ if(Math.random()<diff.aiGrowth){ t.army += 1; grew++; } });
+    if(grew>0) log(`${HOUSES[house].flag} ${HOUSES[house].name} musters fresh levies in ${grew} shire${grew>1?"s":""}.`);
+  }
+
+  // ---------- Turn management ----------
+  $("endTurnBtn").onclick = ()=>{
+    if(state.gameOver) return;
+    // income
+    const diff = DIFFICULTY[state.difficulty];
+    const owned = ownedTerritories("player");
+    const income = Math.round(owned.length * 15 * diff.incomeMult);
+    state.gold += income;
+    log(`💰 Your ${owned.length} shires yield <b>${income} gold</b> in taxes. Treasury now ${state.gold}g.`);
+
+    // AI houses act
+    ["york","lancaster","norman"].forEach(h=>{
+      if(ownedTerritories(h).length>0) aiTurn(h);
+    });
+
+    state.turn += 1;
+    state.selected = null;
+    logTurnHead();
+    updateStats();
+    drawMap();
+    renderSelection();
+    checkGameOver();
+  };
+
+  function checkGameOver(){
+    const playerCount = ownedTerritories("player").length;
+    const total = Object.keys(T).length;
+    if(playerCount===0 && !state.gameOver){
+      state.gameOver = true;
+      log(`💀 <b>House Blackwood has fallen.</b> The crown is lost.`);
+      alert("Your house has been destroyed. The game is over — refresh to play again.");
+    } else if(playerCount===total && !state.gameOver){
+      state.gameOver = true;
+      log(`👑 <b>House Blackwood rules the entire realm! Victory!</b>`);
+      alert("Victory! You have united the whole realm under House Blackwood!");
+    }
+  }
+
+  // ---------- Legend ----------
+  function renderLegend(){
+    const el = $("legend");
+    el.innerHTML = "";
+    Object.keys(HOUSES).forEach(k=>{
+      if(k==="neutral") return;
+      const h = HOUSES[k];
+      const s = document.createElement("span");
+      s.innerHTML = `<span class="swatch" style="background:${h.color}"></span>${h.flag} ${h.name}`;
+      el.appendChild(s);
+    });
+  }
+
+  // ---------- Save / Load ----------
+  function serialize(){
+    const territories = {};
+    for(const id in T) territories[id] = { owner:T[id].owner, army:T[id].army };
+    return {
+      v:1,
+      territories,
+      gold: state.gold,
+      reserve: state.reserve,
+      turn: state.turn,
+      difficulty: state.difficulty
+    };
+  }
+  function encodeSave(obj){
+    return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  }
+  function decodeSave(code){
+    return JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+  }
+  function applySave(obj){
+    for(const id in obj.territories){
+      if(T[id]){ T[id].owner = obj.territories[id].owner; T[id].army = obj.territories[id].army; }
+    }
+    state.gold = obj.gold;
+    state.reserve = obj.reserve;
+    state.turn = obj.turn;
+    state.difficulty = obj.difficulty || "normal";
+    state.selected = null;
+    state.gameOver = false;
+  }
+
+  $("saveBtn").onclick = ()=>{
+    const code = encodeSave(serialize());
+    $("saveCode").value = code;
+    showModal("savePanel");
+  };
+  $("copyCodeBtn").onclick = ()=>{
+    $("saveCode").select();
+    document.execCommand && document.execCommand("copy");
+    navigator.clipboard && navigator.clipboard.writeText($("saveCode").value).catch(()=>{});
+  };
+  $("saveCloseBtn").onclick = ()=> hideOverlay();
+
+  $("loadBtn").onclick = ()=>{
+    $("loadCode").value = "";
+    showModal("loadPanel");
+  };
+  $("loadCloseBtn").onclick = ()=> hideOverlay();
+  $("loadConfirmBtn").onclick = ()=>{
+    try{
+      const obj = decodeSave($("loadCode").value);
+      applySave(obj);
+      hideOverlay();
+      updateStats(); drawMap(); renderSelection();
+      log("📜 A saved chronicle has been restored. Play continues from where you left off.");
+    }catch(e){
+      alert("That save code could not be read. Double-check you copied the whole thing.");
+    }
+  };
+  $("loadFromStartLink").onclick = ()=>{
+    $("loadCode").value = "";
+    showModal("loadPanel");
+  };
+
+  function showModal(id){
+    ["startPanel","savePanel","loadPanel","jousttPanel","resultPanel"].forEach(p=>{
+      $(p).style.display = (p===id) ? "block" : "none";
+    });
+    $("overlay").classList.add("show");
+  }
+  function hideOverlay(){
+    $("overlay").classList.remove("show");
+  }
+
+  // ---------- Init ----------
+  function startGame(diffKey){
+    state.difficulty = diffKey;
+    state.gold = DIFFICULTY[diffKey].startGold;
+    hideOverlay();
+    updateStats();
+    renderSelection();
+    renderLegend();
+    drawMap();
+    log(`The old king is dead, and the realm splinters into warring houses. Take up your banner, Lord of Blackwood. <i>(${DIFFICULTY[diffKey].label} difficulty)</i>`);
+    logTurnHead();
+  }
+
+  function init(){
+    renderLegend();
+    drawMap();
+    document.querySelectorAll(".diffCard").forEach(card=>{
+      card.addEventListener("click", ()=> startGame(card.dataset.diff));
+    });
+    showModal("startPanel");
+  }
+  init();
+})();
+</script>
+</body>
+</html>
